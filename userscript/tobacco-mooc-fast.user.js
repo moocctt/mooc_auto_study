@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         烟草网络学院 · 快速刷课学习助手
 // @namespace    https://github.com/gandli/tobacco-mooc-study
-// @version      1.1.4
+// @version      1.1.5
 // @license      MIT
 // @homepageURL  https://github.com/moocctt/mooc_auto_study
 // @supportURL   https://github.com/moocctt/mooc_auto_study/issues
@@ -262,6 +262,32 @@
   const state = { running: false, stopFlag: false, paused: false, course: '', section: '', round: 0, submitted: 0, collapsed: false, pinned: false, stacked: false };
   class QuotaExhausted extends Error {}
 
+  // 平台开启「唯一学习会话」(ANTI_BRUSH_COURSE_MECHANISM.enableUnique=1)：
+  // 页面播放器与脚本同时上报会触发「请勿同时学习多门课程」(video-progress -> 422 / 40909)。
+  // 任务运行期间暂停页面自带播放器并拦截其恢复播放, 保证同一时刻只有脚本这一个学习会话。
+  let mediaGuard = null;
+  function startMediaGuard() {
+    if (mediaGuard) return;
+    const pauseAll = () => {
+      document.querySelectorAll('video,audio').forEach((m) => {
+        try { m.autoplay = false; if (!m.paused) m.pause(); } catch { /* ignore */ }
+      });
+    };
+    const onPlay = (e) => { try { e.target.pause(); } catch { /* ignore */ } };
+    document.addEventListener('play', onPlay, true);
+    const timer = setInterval(pauseAll, 2000);   // SPA 可能重建播放器, 定期复查
+    pauseAll();
+    mediaGuard = { onPlay, timer };
+    log('⏸ 已暂停页面自带播放器 —— 平台只允许一个学习会话, 避免「请勿同时学习多门课程」');
+  }
+  function stopMediaGuard() {
+    if (!mediaGuard) return;
+    document.removeEventListener('play', mediaGuard.onPlay, true);
+    clearInterval(mediaGuard.timer);
+    mediaGuard = null;
+  }
+
+
   // ---------------------------------------------------------------- 暂停/继续（复用面板原有按钮）
   let pauseWaiters = [];
   function setPaused(v, silent = false) {
@@ -314,6 +340,7 @@
         out.push({
           id: sec.referenceId, rid: sec.resourceId, name: sec.name || sec.sectionName || '',
           type: sec.sectionType, finish: p.finishStatus ?? 0, studied: p.studyTotalTime || 0,
+          loc: Number(p.lessonLocation || 0) || 0,
         });
       }
     }
@@ -335,7 +362,7 @@
     for (const ch of (det && det.courseChapters) || []) {
       for (const sec of ch.courseChapterSections || []) {
         const ft = String(sec.fileType || '').toLowerCase();
-        secs.push({ id: sec.id, rid: sec.attachmentId, name: sec.name || sec.sectionName || '', type: map[ft] ?? 0, finish: 0, studied: 0 });
+        secs.push({ id: sec.id, rid: sec.attachmentId, name: sec.name || sec.sectionName || '', type: map[ft] ?? 0, finish: 0, studied: 0, loc: 0 });
       }
     }
     return [Object.assign(det || {}, { _library: true }), secs, true];
@@ -386,7 +413,7 @@
     }
 
     const step0 = chunk();
-    let total = null, submitted = 0, prevRem = null, stuck = 0, maxRounds = 0;
+    let total = null, submitted = 0, prevRem = null, stuck = 0, maxRounds = 0, curLoc = Number(sec.loc || 0) || 0;
     for (let i = 0; ; i++) {
       if (state.stopFlag) return [false, '已停止'];
       await waitWhilePaused();
@@ -402,9 +429,11 @@
         if (submitted || sec.studied) return [true, `时长已用完（共 ${submitted}s）`];
         return [true, '该小节无剩余时长'];
       }
-      if (prevRem !== null && rem >= prevRem) {
+      // 平台按结算窗口批量结算, 剩余时长短时间内不下降属正常 —— 以 lessonLocation 是否推进为准,
+      // 不再据此断言「当日学时配额已满」(实测该文案为误判)。
+      if (prevRem !== null && rem > prevRem) {
         stuck += 1;
-        if (stuck >= 2) throw new QuotaExhausted(`剩余时长未下降 (${prevRem}→${rem}) —— 判定当日学时配额已满`);
+        if (stuck >= 3) throw new QuotaExhausted(`剩余时长异常回退 (${prevRem}→${rem}) —— 平台未接受本轮上报, 请稍后重试`);
       } else stuck = 0;
       prevRem = rem;
 
@@ -413,7 +442,8 @@
         maxRounds = Math.ceil(total / step0) + 5;   // 按剩余时长动态算上限
       }
       const step = Math.min(step0, rem);
-      const loc = Math.min(total, total - rem + step);
+      curLoc = Math.min(total, curLoc + step);   // 从平台已有播放位置单调递增, 与 remainingTime 是否结算解耦
+      const loc = curLoc;
       const isMedia = MEDIA.has(sec.type);
       const [code, body] = isMedia
         ? await req('POST', API.VIDEO, { data: { encrypt: 'false', logId, studyTime: Math.trunc(step), lessonLocation: Math.trunc(loc), resourceTotalTime: Math.trunc(total), flush: 'false' } })
@@ -428,6 +458,13 @@
       if (courseId) await progressUpdate(courseId);
       ui();
       if (body && DONE.has(body.finishStatus)) return [true, `完成, ${i + 1} 轮 / ${submitted}s`];
+      if (curLoc >= total) {
+        // 播放位置已推到末尾: 复核平台完成态; 未结算时给中性提示, 不再误判为配额已满
+        const [, check] = await req('POST', API.SECTION_PROGRESS, { data: { courseId, resourceIds: sec.rid } });
+        if (Array.isArray(check) && check.length && DONE.has(check[0].finishStatus))
+          return [true, `完成, ${i + 1} 轮 / ${submitted}s`];
+        return [false, `已推至课程末尾 (${i + 1} 轮 / ${submitted}s), 平台未结算完成态 —— 请只保留一个学习会话并稍后重试`];
+      }
       await nap(rand(600, 1600));   // 快速模式: 轮间只歇约 1 秒
     }
   }
@@ -455,7 +492,7 @@
         else if (SKIP.has(sec.type)) skipped += 1;   // 不支持类型不算"未完成", 否则父课程永远结不了
         log(`   → ${msg}`);
       } catch (e) {
-        if (e instanceof QuotaExhausted) { if (depth === 0) log('[配额] ' + e.message + ', 终止全部'); throw e; }
+        if (e instanceof QuotaExhausted) { if (depth === 0) log('[平台] ' + e.message + ', 终止全部'); throw e; }
         if (e.auth) throw e;                         // 鉴权失败: 整轮终止, 不逐节空等
         log(`   ✗ ${e.message}`);
       }
@@ -479,7 +516,7 @@
       return;
     }
     window.__MOOC_US_LOCK = MY_LOCK;
-    state.running = true; state.stopFlag = false; state.paused = false;
+    state.running = true; state.stopFlag = false; state.paused = false; startMediaGuard();
     ui();
     log(`⚡ 快速模式: 单档 ${chunk()}s, 回填开始时间, 轮间歇 ~1s`);
     let failCount = 0, quotaHit = false;
@@ -518,7 +555,7 @@
           await nap(rand(1500, 3000));
         }
       }
-      if (quotaHit) log('⚠ 学时配额已满, 已停止 (次日再试)');
+      if (quotaHit) log('⚠ 平台未接受上报, 已停止 (请只保留一个学习会话并稍后重试)');
       else if (!state.stopFlag) {
         if (mode === 'course') log(failCount ? `⚠ 本课程/专题处理完毕 (失败 ${failCount} 处)` : '✅ 本课程/专题处理完毕');
         else log(failCount ? `⚠ 全部任务处理完毕 (失败 ${failCount} 门)` : '✅ 全部任务处理完毕');
@@ -526,7 +563,7 @@
     } catch (e) {
       log(`✗ ${e.message}`);
     } finally {
-      state.running = false; state.paused = false; state.course = ''; state.section = '';
+      state.running = false; state.paused = false; state.course = ''; state.section = ''; stopMediaGuard();
       if (window.__MOOC_US_LOCK === MY_LOCK) window.__MOOC_US_LOCK = null;
       ui();
     }
@@ -540,7 +577,7 @@
       return;
     }
     window.__MOOC_US_LOCK = MY_LOCK;
-    state.running = true; state.stopFlag = false; state.paused = false;
+    state.running = true; state.stopFlag = false; state.paused = false; startMediaGuard();
     ui();
     try {
       const [done, total] = await runCourse(bid);
@@ -548,9 +585,9 @@
       else if (done < total) log(`⚠ 未完全完成 (${done}/${total}) —— 部分小节失败或被跳过`);
       else log('✅ 当前页面课程/专题处理完毕');
     } catch (e) {
-      log(e instanceof QuotaExhausted ? '[配额] ' + e.message : `✗ ${e.message}`);
+      log(e instanceof QuotaExhausted ? '[平台] ' + e.message : `✗ ${e.message}`);
     } finally {
-      state.running = false; state.paused = false; state.course = ''; state.section = '';
+      state.running = false; state.paused = false; state.course = ''; state.section = ''; stopMediaGuard();
       if (window.__MOOC_US_LOCK === MY_LOCK) window.__MOOC_US_LOCK = null;
       ui();
     }
