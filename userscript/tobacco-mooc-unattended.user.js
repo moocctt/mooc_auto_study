@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         烟草网络学院 · 无人值守学习助手
 // @namespace    https://github.com/gandli/tobacco-mooc-study
-// @version      1.1.2
+// @version      1.1.3
 // @license      MIT
 // @homepageURL  https://github.com/moocctt/mooc_auto_study
 // @supportURL   https://github.com/moocctt/mooc_auto_study/issues
@@ -454,7 +454,9 @@
     ? (String(window.__MOOC_US_LOCK).startsWith('fast') ? '另一个脚本' : '另一条任务')
     : '');
 
-  async function runUnattended() {
+  /** mode: 'course' 学习当前页面的课程/专题; 'tasks' 执行个人学习任务。
+   *  由面板按钮显式指定, 脚本不做任何自动运行。 */
+  async function runUnattended(mode = 'tasks') {
     // 互斥锁: 任何一方持有(另一脚本/另一条任务)都拒绝 —— 同页两条流程会共享 state 互相踩踏
     const owner = lockOwner();
     if (owner || state.running) {
@@ -465,12 +467,11 @@
     state.running = true; state.stopFlag = false;
     ui();
     let failCount = 0, quotaHit = false;
-    // 页面类型决定跑什么: 课程/专题详情页 → 学当前页面; 其他页面 → 执行个人学习任务
-    const bid = currentBidFromHash();
-    const mode = bid ? 'course' : 'tasks';
     try {
-      if (bid) {
-        log('当前为课程/专题页 → 播放学习本课程/专题');
+      if (mode === 'course') {
+        const bid = currentBidFromHash();
+        if (!bid) { log('✗ 当前页面不是课程/专题详情页, 无法定位学习目标'); return; }
+        log('→ 学习本课程/专题');
         try {
           const [ok, total] = await runCourse(bid);
           if (state.stopFlag) log(`■ 已停止 (${ok}/${total})`);
@@ -482,7 +483,7 @@
         }
       } else {
         const tasks = await undoneTasks();
-        log(`当前不是课程/专题页 → 执行个人学习任务: 未完成 ${tasks.length} 门`);
+        log(`→ 执行个人学习任务: 未完成 ${tasks.length} 门`);
         if (!tasks.length) log('没有未完成的学习任务');
         for (const t of tasks) {
           if (state.stopFlag) { log('已停止'); break; }
@@ -582,7 +583,7 @@
   setInterval(applyPlayerPrefs, 3000);
 
   // ---------------------------------------------------------------- UI
-  let box, logEl, statusEl, btnStart;
+  let box, logEl, statusEl, btnStart, btnTasks;
   function log(msg) {
     const t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     if (logEl) {
@@ -598,10 +599,12 @@
     if (!statusEl) return;
     statusEl.textContent = state.running
       ? `▶ ${state.course || '准备中'} | ${state.section || ''} | 轮 ${state.round} | 已报 ${state.submitted}s`
-      : (lockOwner() ? '■ 已停止 (另一任务/脚本运行中)'
-        : (currentBidFromHash() ? '■ 已停止 · 当前页课程/专题' : '■ 已停止 · 个人学习任务'));
-    btnStart.textContent = state.running ? '⏸ 停止'
-      : (currentBidFromHash() ? '▶ 学习本课程/专题' : '▶ 执行学习任务');
+      : (lockOwner() ? '■ 已停止 (另一任务/脚本运行中)' : '■ 就绪 · 选择要学习的目标');
+    btnStart.textContent = state.running ? '⏸ 停止' : '▶ 学习当前课程/专题';
+    if (btnTasks) {
+      btnTasks.textContent = state.running ? '运行中…' : '▶ 执行学习任务';
+      btnTasks.style.opacity = state.running ? '0.5' : '';
+    }
   }
   // 计算面板 top: 避开网站顶栏 —— 找视口顶部第一个 fixed/sticky 元素, 取其底边 + 8px;
   // 量不到时退回 64px（平台顶栏常见高度）。
@@ -702,8 +705,8 @@
       <div class="um-body">
         <div id="um-status" style="padding:6px 10px;color:#57606a"></div>
         <div style="padding:0 10px 6px;display:flex;gap:6px">
-          <button id="um-start" style="flex:2;display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 8px;font:inherit;line-height:1;cursor:pointer;border:1px solid ${theme.bg};background:${theme.bg};color:${fg};border-radius:6px"></button>
-          <button id="um-here" title="学习当前页面打开的课程/专题（不看任务列表）" style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 8px;font:inherit;line-height:1;cursor:pointer;border:1px solid ${theme.bg};background:#fff;color:${theme.light ? theme.bg : '#1f2328'};border-radius:6px">学习当前页</button>
+          <button id="um-start" title="学习当前页面打开的课程/专题" style="flex:2;display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 8px;font:inherit;line-height:1;cursor:pointer;border:1px solid ${theme.bg};background:${theme.bg};color:${fg};border-radius:6px"></button>
+          <button id="um-tasks" title="学习「我的任务」列表里的未完成课程" style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 8px;font:inherit;line-height:1;cursor:pointer;border:1px solid ${theme.bg};background:#fff;color:${theme.light ? theme.bg : '#1f2328'};border-radius:6px"></button>
         </div>
         <div id="um-log" style="height:180px;overflow-y:auto;padding:4px 10px;border-top:1px solid #eaeef2;white-space:pre-wrap"></div>
       </div>`;
@@ -718,19 +721,23 @@
     logEl = box.querySelector('#um-log');
     statusEl = box.querySelector('#um-status');
     btnStart = box.querySelector('#um-start');
+    btnTasks = box.querySelector('#um-tasks');
     makeDraggable(box.querySelector('.um-head'), box, () => setCollapsed(!state.collapsed));
+    // 按钮一: 学习当前课程/专题（需在课程/专题详情页上）
     btnStart.onclick = (e) => {
       e.stopPropagation();
-      if (state.running) { state.stopFlag = true; log('正在停止(等当前轮结束)…'); }
-      else { setCollapsed(false); runUnattended(); }
-    };
-    box.querySelector('#um-here').onclick = (e) => {
-      e.stopPropagation();
-      if (state.running) { log('已有任务在跑, 请先停止'); return; }
+      if (state.running) { state.stopFlag = true; log('正在停止(等当前轮结束)…'); return; }
       const bid = currentBidFromHash();
       if (!bid) { log('✗ 当前页面不是课程/专题详情页, 无法定位学习目标'); return; }
       setCollapsed(false);
       runSingle(bid);
+    };
+    // 按钮二: 执行个人学习任务（不看当前页面类型）
+    btnTasks.onclick = (e) => {
+      e.stopPropagation();
+      if (state.running) { log('已有任务在跑, 请先停止'); return; }
+      setCollapsed(false);
+      runUnattended('tasks');
     };
     setCollapsed(!!GM_getValue('collapsed', false));
     ui();
@@ -763,7 +770,7 @@
       const btn = box.querySelector('#um-start');
       head.style.background = theme.bg; head.style.color = fg;
       if (btn) { btn.style.background = theme.bg; btn.style.borderColor = theme.bg; btn.style.color = fg; }
-      const here = box.querySelector('#um-here');
+      const here = box.querySelector('#um-tasks');
       if (here) { here.style.borderColor = theme.bg; here.style.color = theme.light ? theme.bg : '#1f2328'; }
       if (!state.pinned && !state.stacked) box.style.top = headerOffset() + 'px'; // 用户拖过/叠放的 top 不被换肤刷新覆盖
     };
@@ -787,10 +794,6 @@
     GM_setValue('companyName', v.trim() || '全行业');
     alert('已保存: ' + (v.trim() || '全行业'));
   });
-  GM_registerMenuCommand('自动续跑: ' + (GM_getValue('autoContinue') ? '开→关' : '关→开'), () => {
-    GM_setValue('autoContinue', !GM_getValue('autoContinue'));
-    location.reload();
-  });
 
   // ---------------------------------------------------------------- 启动
   // 当前页面课程/专题 ID（与扩展 mooc-routes.ts 同款路由表）:
@@ -811,11 +814,9 @@
   window.__MOOC_US_DEBUG__ = Object.assign(window.__MOOC_US_DEBUG__ || {}, {
     realtime: { state, runCourse, runUnattended, runSingle, currentBidFromHash, log },
   });
-  // 面板在全站自动出现: 课程/专题页 → 学当前页面; 其他页面 → 执行个人学习任务。
+  // 面板在全站自动出现（仅挂载 UI, 不自动运行任何学习任务）。
   // 登录/注册页不挂载（无令牌时面板无意义）。主题色取自网站顶栏(.header)。
-  const STUDY_PAGE_RE = /#\/study\/(?:course\/detail\/\d|subject\/detail\/[0-9a-zA-Z-]{8,})/;
   const AUTH_PAGE_RE = /#\/(?:login|register|forget|auth)\b/i;
-  const isStudyPage = () => STUDY_PAGE_RE.test(location.hash);
   const isAuthPage = () => AUTH_PAGE_RE.test(location.hash);
   function bootMount() {
     if (box || isAuthPage()) return;
@@ -825,10 +826,6 @@
   function boot() {
     bootMount();
     window.addEventListener('hashchange', bootMount);   // SPA 导航到任何页面都能补挂面板
-    if (GM_getValue('autoContinue') && !state.running && isStudyPage()) {
-      log('[自动续跑] 已开启, 3s 后启动');
-      setTimeout(() => { if (!state.running) runUnattended(); }, 3000);
-    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
