@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         烟草网络学院 · 无人值守学习助手
 // @namespace    https://github.com/gandli/tobacco-mooc-study
-// @version      1.1.3
+// @version      1.1.4
 // @license      MIT
 // @homepageURL  https://github.com/moocctt/mooc_auto_study
 // @supportURL   https://github.com/moocctt/mooc_auto_study/issues
@@ -268,12 +268,38 @@
 
   // ---------------------------------------------------------------- 引擎（与扩展 fakeSection/runCourse 同款，恒为真实学时模式）
   const state = {
-    running: false, stopFlag: false,
+    running: false, stopFlag: false, paused: false,
     course: '', section: '', round: 0, submitted: 0,
     collapsed: false,
-    pinned: false,          // 用户拖动过 → 不再被换肤/主题刷新改 top
-    stacked: false,         // 检测到另一脚本面板 → 叠放在其下方（每轮 tick 重算）
+    pinned: false,          // 用户拖动过 → 位置不再自动重算
+    stacked: false,         // 检测到另一脚本面板 → 向上叠放（每轮 tick 重算）
   };
+
+  // ---------------------------------------------------------------- 暂停/继续（复用面板原有按钮）
+  let pauseWaiters = [];
+  function setPaused(v, silent = false) {
+    v = !!v;
+    if (state.paused === v) return;
+    state.paused = v;
+    if (!v) { const ws = pauseWaiters; pauseWaiters = []; ws.forEach((w) => w()); }
+    ui();
+    if (!silent) log(v ? '⏸ 已暂停 —— 当前轮结束后挂起, 点「▶ 继续」恢复' : '▶ 已继续');
+  }
+  function waitWhilePaused() {
+    if (!state.paused || state.stopFlag) return Promise.resolve();
+    return new Promise((resolve) => pauseWaiters.push(resolve));
+  }
+  /** 可被暂停/停止打断的等待: 分段睡, 暂停期间不消耗剩余时长 */
+  async function nap(ms) {
+    let left = ms;
+    while (left > 0 && !state.stopFlag) {
+      const t0 = Date.now();
+      await sleep(Math.min(200, left));
+      left -= Date.now() - t0;
+      if (state.stopFlag) break;
+      await waitWhilePaused();
+    }
+  }
   class QuotaExhausted extends Error {}
 
   async function undoneTasks() {
@@ -348,7 +374,7 @@
         const [, body] = await req('POST', API.DOC, { data: { encrypt: 'false', logId } });
         if (body && DONE.has(body.finishStatus)) return true;
       }
-      await sleep(rand(2500, 4000));
+      await nap(rand(2500, 4000));
     }
     const [, rows] = await req('POST', API.SECTION_PROGRESS, { data: { courseId: parentId, resourceIds: childId } });
     return Array.isArray(rows) && rows.length ? DONE.has(rows[0].finishStatus) : false;
@@ -374,6 +400,8 @@
 
     let total = null, submitted = 0, prevRem = null, stuck = 0, maxRounds = 0;
     for (let i = 0; ; i++) {
+      if (state.stopFlag) return [false, '已停止'];
+      await waitWhilePaused();
       if (state.stopFlag) return [false, '已停止'];
       if (maxRounds && i >= maxRounds) return [false, `轮次用完 (已提交 ${submitted}s)`];
       state.round = i + 1;
@@ -404,7 +432,7 @@
         : await req('POST', API.DOC, { data: { encrypt: 'false', logId, lessonLocation: Math.trunc(loc) } });
 
       if (code !== 200) {
-        if (body && body.errorCode === 40909) { await sleep(1000); continue; }
+        if (body && body.errorCode === 40909) { await nap(1000); continue; }
         return [false, `上报失败 HTTP ${code}`];
       }
       submitted += step;
@@ -413,7 +441,7 @@
       ui();
       if (body && DONE.has(body.finishStatus)) return [true, `完成, ${i + 1} 轮 / ${submitted}s`];
       // 真实模式: 睡满本轮上报秒数 —— 真实时间 == 上报学习时间
-      await sleep(step * 1000);
+      await nap(step * 1000);
     }
   }
 
@@ -428,6 +456,8 @@
     if (!secs.length) { log('⚠ 章节列表为空(接口异常或课程无小节), 按未完成处理'); return [0, 1]; }
     let ok = 0, skipped = 0;
     for (let i = 0; i < todo.length; i++) {
+      if (state.stopFlag) break;
+      await waitWhilePaused();
       if (state.stopFlag) break;
       const sec = todo[i];
       state.section = `${i + 1}/${todo.length} (${TYPE_NAME[sec.type] || sec.type}) ${String(sec.name).slice(0, 30)}`;
@@ -464,7 +494,7 @@
       return;
     }
     window.__MOOC_US_LOCK = MY_LOCK;
-    state.running = true; state.stopFlag = false;
+    state.running = true; state.stopFlag = false; state.paused = false;
     ui();
     let failCount = 0, quotaHit = false;
     try {
@@ -487,6 +517,8 @@
         if (!tasks.length) log('没有未完成的学习任务');
         for (const t of tasks) {
           if (state.stopFlag) { log('已停止'); break; }
+          await waitWhilePaused();
+          if (state.stopFlag) { log('已停止'); break; }
           try {
             const [ok, total] = await runCourse(t.businessId);
             if (ok < total) { failCount += 1; log(`⚠ ${String(t.name || '').slice(0, 20)} 未完成 (${ok}/${total})`); }
@@ -497,7 +529,7 @@
             failCount += 1;
             log(`✗ 课程失败: ${e.message}`);
           }
-          await sleep(rand(3000, 6000));
+          await nap(rand(3000, 6000));
         }
       }
       if (quotaHit) log('⚠ 学时配额已满, 已停止 (次日再试)');
@@ -508,7 +540,7 @@
     } catch (e) {
       log(`✗ ${e.message}`);
     } finally {
-      state.running = false; state.course = ''; state.section = '';
+      state.running = false; state.paused = false; state.course = ''; state.section = '';
       if (window.__MOOC_US_LOCK === MY_LOCK) window.__MOOC_US_LOCK = null;
       ui();
     }
@@ -522,7 +554,7 @@
       return;
     }
     window.__MOOC_US_LOCK = MY_LOCK;
-    state.running = true; state.stopFlag = false;
+    state.running = true; state.stopFlag = false; state.paused = false;
     ui();
     try {
       const [done, total] = await runCourse(bid);
@@ -532,7 +564,7 @@
     } catch (e) {
       log(e instanceof QuotaExhausted ? '[配额] ' + e.message : `✗ ${e.message}`);
     } finally {
-      state.running = false; state.course = ''; state.section = '';
+      state.running = false; state.paused = false; state.course = ''; state.section = '';
       if (window.__MOOC_US_LOCK === MY_LOCK) window.__MOOC_US_LOCK = null;
       ui();
     }
@@ -598,28 +630,16 @@
   function ui() {
     if (!statusEl) return;
     statusEl.textContent = state.running
-      ? `▶ ${state.course || '准备中'} | ${state.section || ''} | 轮 ${state.round} | 已报 ${state.submitted}s`
+      ? `${state.paused ? '⏸ 已暂停' : '▶'} ${state.course || '准备中'} | ${state.section || ''} | 轮 ${state.round} | 已报 ${state.submitted}s`
       : (lockOwner() ? '■ 已停止 (另一任务/脚本运行中)' : '■ 就绪 · 选择要学习的目标');
-    btnStart.textContent = state.running ? '⏸ 停止' : '▶ 学习当前课程/专题';
+    // 运行时复用两个按钮: 主按钮暂停/继续, 副按钮停止（不新增按钮）
+    btnStart.textContent = state.running ? (state.paused ? '▶ 继续' : '⏸ 暂停') : '▶ 学习当前课程/专题';
     if (btnTasks) {
-      btnTasks.textContent = state.running ? '运行中…' : '▶ 执行学习任务';
-      btnTasks.style.opacity = state.running ? '0.5' : '';
+      btnTasks.textContent = state.running ? '■ 停止' : '▶ 执行学习任务';
+      btnTasks.style.opacity = '';
     }
   }
-  // 计算面板 top: 避开网站顶栏 —— 找视口顶部第一个 fixed/sticky 元素, 取其底边 + 8px;
-  // 量不到时退回 64px（平台顶栏常见高度）。
-  function headerOffset() {
-    try {
-      const els = document.elementsFromPoint(1, 1);
-      for (const el of els) {
-        if (el === document.documentElement || el === document.body) continue;
-        const cs = getComputedStyle(el);
-        if ((cs.position === 'fixed' || cs.position === 'sticky') && el.offsetHeight > 0 && el.offsetHeight < 200)
-          return el.getBoundingClientRect().bottom + 8;
-      }
-    } catch { /* ignore */ }
-    return 64;
-  }
+  // 面板默认贴右下角(bottom/right 定位), 无需按顶栏高度计算 top。
   // 从网站顶栏提取主题色: 找到顶栏元素后, 在其自身及后代里找第一个不透明、非纯白的
   // 背景色; 量不到时退回默认色。light = 背景偏深(可用白字), 否则用深色文字。
   function headerColor(fallback) {
@@ -662,7 +682,7 @@
         const left = Math.min(Math.max(0, px + dx), window.innerWidth - w);
         const top = Math.min(Math.max(0, py + dy), window.innerHeight - h);
         panel.style.left = left + 'px'; panel.style.top = top + 'px';
-        panel.style.right = 'auto';
+        panel.style.right = 'auto'; panel.style.bottom = 'auto';
       };
       const up = () => {
         document.removeEventListener('mousemove', mv);
@@ -690,14 +710,12 @@
     if (box) return;
     const theme = headerColor('#1a7f37');
     const fg = theme.light ? '#fff' : '#1f2328';
-    // 两个脚本同时启用时避免面板完全重叠: 检测到对方面板就叠在它下方
+    // 默认贴右下角(bottom/right 定位), 展开/折叠都不会跑出视口。
+    // 两个脚本同时启用时避免面板完全重叠: 检测到对方面板就向上叠放, 位置由 watchTheme 每轮重算
     const buddy = document.querySelector('.um-head, .uf-head');
-    const baseTop = buddy
-      ? Math.round(buddy.parentElement.getBoundingClientRect().bottom + 12)
-      : headerOffset();
-    if (buddy) state.stacked = true;   // 叠放在对方面板下方；位置由 watchTheme 每轮重算
+    if (buddy) state.stacked = true;
     box = document.createElement('div');
-    box.style.cssText = `position:fixed;top:${baseTop}px;right:12px;z-index:999999;width:340px;background:#fff;border:1px solid #d0d7de;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);font:12px/1.5 monospace;color:#1f2328;`;
+    box.style.cssText = `position:fixed;bottom:12px;right:12px;z-index:999999;width:340px;background:#fff;border:1px solid #d0d7de;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);font:12px/1.5 monospace;color:#1f2328;`;
     box.innerHTML = `
       <div class="um-head" style="padding:6px 10px;background:${theme.bg};color:${fg};border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none">
         <b>无人值守学习助手</b><span class="um-toggle" style="cursor:pointer">—</span>
@@ -715,27 +733,32 @@
     if (pos) { // 恢复上次拖放位置(钳制在视口内)
       box.style.left = Math.min(Math.max(0, pos.left), Math.max(0, window.innerWidth - box.offsetWidth)) + 'px';
       box.style.top = Math.min(Math.max(0, pos.top), Math.max(0, window.innerHeight - box.offsetHeight)) + 'px';
-      box.style.right = 'auto';
-      state.pinned = true;   // 用户定位过 → 换肤刷新不再改 top
+      box.style.right = 'auto'; box.style.bottom = 'auto';
+      state.pinned = true;   // 用户定位过 → 位置不再自动重算
     }
     logEl = box.querySelector('#um-log');
     statusEl = box.querySelector('#um-status');
     btnStart = box.querySelector('#um-start');
     btnTasks = box.querySelector('#um-tasks');
     makeDraggable(box.querySelector('.um-head'), box, () => setCollapsed(!state.collapsed));
-    // 按钮一: 学习当前课程/专题（需在课程/专题详情页上）
+    // 按钮一: 学习当前课程/专题（需在课程/专题详情页上）; 运行中/暂停中 → 暂停或继续
     btnStart.onclick = (e) => {
       e.stopPropagation();
-      if (state.running) { state.stopFlag = true; log('正在停止(等当前轮结束)…'); return; }
+      if (state.running) { setPaused(!state.paused); return; }
       const bid = currentBidFromHash();
       if (!bid) { log('✗ 当前页面不是课程/专题详情页, 无法定位学习目标'); return; }
       setCollapsed(false);
       runSingle(bid);
     };
-    // 按钮二: 执行个人学习任务（不看当前页面类型）
+    // 按钮二: 执行个人学习任务（不看当前页面类型）; 运行中/暂停中 → 停止
     btnTasks.onclick = (e) => {
       e.stopPropagation();
-      if (state.running) { log('已有任务在跑, 请先停止'); return; }
+      if (state.running) {
+        setPaused(false, true);            // 静默唤醒挂起的等待, 让停止立刻落地
+        state.stopFlag = true;
+        log('正在停止(等当前轮结束)…');
+        return;
+      }
       setCollapsed(false);
       runUnattended('tasks');
     };
@@ -744,7 +767,7 @@
     watchTheme();
   }
   // 顶栏主题色跟随: 平台按栏目换肤(顶栏色会变), 每 2s + hash 变化时重取顶栏色,
-  // 变化才更新面板(标题栏/按钮同色 + top 偏移), 不变色不动 DOM。
+  // 变化才更新面板(标题栏/按钮同色), 不变色不动 DOM。默认位置由 bottom/right 锚定在右下角。
   // 叠放模式(stacked, 检测到对方面板)每次 tick 重算位置 —— 对方折叠/展开/隐藏都能跟上。
   function watchTheme() {
     const FALLBACK = '#1a7f37';
@@ -756,10 +779,14 @@
         const buddy = Array.from(document.querySelectorAll('.um-head, .uf-head'))
           .find((el) => el.parentElement !== box);
         const rect = buddy && buddy.parentElement.getBoundingClientRect();
+        // 右下角向上叠放: 本面板底边贴在对方面板顶边上方 12px, 且不顶出视口
         if (rect && rect.height > 0) {
-          const top = Math.min(Math.round(rect.bottom + 12), Math.max(0, window.innerHeight - box.offsetHeight));
-          box.style.top = top + 'px';
+          const maxBottom = Math.max(12, window.innerHeight - box.offsetHeight - 12);
+          box.style.bottom = Math.min(Math.round(window.innerHeight - rect.top + 12), maxBottom) + 'px';
+        } else {
+          box.style.bottom = '12px';   // 对方面板已消失 → 回到默认右下角
         }
+        box.style.top = 'auto';
       }
       const theme = headerColor(FALLBACK);
       const key = theme.bg + (theme.light ? 'L' : 'D');
@@ -772,7 +799,6 @@
       if (btn) { btn.style.background = theme.bg; btn.style.borderColor = theme.bg; btn.style.color = fg; }
       const here = box.querySelector('#um-tasks');
       if (here) { here.style.borderColor = theme.bg; here.style.color = theme.light ? theme.bg : '#1f2328'; }
-      if (!state.pinned && !state.stacked) box.style.top = headerOffset() + 'px'; // 用户拖过/叠放的 top 不被换肤刷新覆盖
     };
     tick();
     setInterval(tick, 2000);
