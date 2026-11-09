@@ -1,0 +1,24 @@
+# 凭证与本地数据, 永不入库
+.env
+mooc_token.json
+
+# 本地环境 / 临时产物
+.venv/
+.workbuddy/
+.playwright-mcp/
+*.log
+
+# 逆向原始产物 (174MB) 与安装包: 只保留 reverse-analysis 分支上的脱敏分析文档
+/reverse/
+/apks/
+/archive/
+
+# 拉取的个人学习数据
+/data/
+
+# 编辑器本地配置
+.vscode/
+
+# 按账号隔离的 token
+mooc_token_*.json
+__pycache__/

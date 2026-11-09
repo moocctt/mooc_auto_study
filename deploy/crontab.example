@@ -1,0 +1,4 @@
+# InstaBox 虚拟机内: crontab -e 添加以下两行
+# 每天 07:10 与 19:40 各执行一次 (避开整点高峰), 日志按天落盘
+10 7  * * * cd /opt/mooc && .venv/bin/python mooc_auto_study.py --todo --no-ws >> logs/run_$(date +\%Y\%m\%d).log 2>&1
+40 19 * * * cd /opt/mooc && .venv/bin/python mooc_auto_study.py --todo --no-ws >> logs/run_$(date +\%Y\%m\%d).log 2>&1

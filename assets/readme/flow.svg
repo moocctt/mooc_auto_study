@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="100%" role="img" aria-label="学时上报链路：创建学习日志并回溯 createTime，逐轮提交学习时长直到完成">
+  <title>学习日志生命周期</title>
+  <defs>
+    <linearGradient id="fbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0C1422"/>
+      <stop offset="1" stop-color="#0C1422"/>
+    </linearGradient>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#3C5A80"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="360" rx="22" fill="url(#fbg)"/>
+
+  <text x="48" y="62" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="20" fill="#6E82A6" letter-spacing="2">STUDY LOG LIFECYCLE</text>
+
+  <!-- 卡片 1 -->
+  <rect x="48" y="96" width="252" height="132" rx="14" fill="#111C2E" stroke="#26405F"/>
+  <text x="72" y="136" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="21" fill="#8FC7FF">start-progress</text>
+  <text x="72" y="172" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#B9C8DE">创建学习日志</text>
+  <text x="72" y="204" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="19" fill="#F2A66B">createTime 回溯</text>
+
+  <!-- 卡片 2 -->
+  <rect x="332" y="96" width="252" height="132" rx="14" fill="#111C2E" stroke="#26405F"/>
+  <text x="356" y="136" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="21" fill="#8FC7FF">服务端校验</text>
+  <text x="356" y="172" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#B9C8DE">时长 ≤ 日志年龄</text>
+  <text x="356" y="204" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#67E2A8">通过</text>
+
+  <!-- 卡片 3 -->
+  <rect x="616" y="96" width="252" height="132" rx="14" fill="#111C2E" stroke="#26405F"/>
+  <text x="640" y="136" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="21" fill="#8FC7FF">video-progress</text>
+  <text x="640" y="172" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#B9C8DE">学习时长入账</text>
+  <text x="640" y="204" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="19" fill="#B9C8DE">一轮 300–900s</text>
+
+  <!-- 卡片 4 -->
+  <rect x="900" y="96" width="252" height="132" rx="14" fill="#12241D" stroke="#2F6B4F"/>
+  <text x="924" y="136" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="21" fill="#67E2A8">小节完成</text>
+  <text x="924" y="172" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#B9C8DE">剩余时长归零</text>
+  <text x="924" y="204" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="19" fill="#67E2A8">finishStatus=2</text>
+
+  <!-- 箭头 -->
+  <g stroke="#3C5A80" stroke-width="2.5" marker-end="url(#ar)">
+    <path d="M300 162h26"/>
+    <path d="M584 162h26"/>
+    <path d="M868 162h26"/>
+  </g>
+
+  <!-- 底部说明 -->
+  <text x="48" y="286" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#7E90AE">每条日志提交一次即失效（40909），因此每轮重新创建；</text>
+  <text x="48" y="320" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif"
+        font-size="20" fill="#7E90AE">关联课程（sectionType=10）需先完成子课程，再由平台复核父记录。</text>
+</svg>
