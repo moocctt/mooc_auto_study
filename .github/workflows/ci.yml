@@ -1,0 +1,29 @@
+name: CI
+on:
+  push: { branches: [ext, ext-native] }
+  pull_request: { branches: [ext, ext-native] }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      # 只跑单测: e2e 要连本地 dev-chrome.sh 的 9223 调试实例, CI 上没有
+      - run: npm run test:unit
+      - name: 隐私政策单一来源一致性
+        run: npm run privacy:check
+      - name: 版本多处一致（package.json/manifest/listing/changelog）
+        run: npm run release:check
+      - name: 扩展文件自检 (manifest/控制台页齐全, 无构建)
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8'))"
+          test -f extension/background.js
+          test -f extension/content/mooc-content.js
+          test -f extension/console.html
+      - name: JS 语法检查（全部扩展 JS）
+        run: |
+          find extension -name '*.js' -print0 | while IFS= read -r -d '' f; do
+            node --input-type=module --check < "$f" || exit 1
+          done

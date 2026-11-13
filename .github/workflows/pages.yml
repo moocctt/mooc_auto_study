@@ -1,0 +1,48 @@
+# 把商店隐私政策页发布到 GitHub Pages
+# ------------------------------------------------------------------
+# 商店后台的「Privacy policy」字段必须是一个可公开访问的 URL, 而且审核会实际打开。
+# 注意: 私有仓库需要 GitHub Pro/Team 才能开 Pages；免费计划的私有仓库会直接 422。
+# 本 workflow 只是「有 Pages 时」的部署路径, 公开托管的兜底方案见 docs/store/listing.md。
+#
+# 首次启用: 仓库 Settings → Pages → Source 选「GitHub Actions」, 然后手动跑一次本 workflow。
+name: Pages (privacy policy)
+
+on:
+  # 只手动触发: 本仓库是 private + 免费计划, Pages 未启用时 push 触发必然红叉
+  # （configure-pages 报 "Get Pages site failed"）。等仓库升级/转为 public 并开启
+  # Settings → Pages (Source: GitHub Actions) 之后, 再手动跑一次即可。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 组装站点（index.html 与 privacy-policy.html 同内容）
+        run: |
+          test -f docs/privacy/index.html
+          mkdir -p _site
+          cp docs/privacy/index.html _site/index.html
+          cp docs/privacy/index.html _site/privacy-policy.html
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>隐私政策</title>' \
+            '<p>页面已迁移：<a href="./privacy-policy.html">隐私政策</a></p>' > _site/404.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

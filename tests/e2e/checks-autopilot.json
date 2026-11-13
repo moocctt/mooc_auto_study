@@ -1,0 +1,15 @@
+{
+  "_comment": "值守播放页断言: 视频-在-播 + 普清画质。前置: 值守开启且课程视频加载完成。用法: node tests/e2e.mjs",
+  "urlIncludes": "course/detail/",
+  "type": "page",
+  "expression": "() => { const v = document.querySelector('video'); const cur = document.querySelector('.vjs-subs-caps-button .vjs-control-text'); return { url: location.href, readyState: document.readyState, video: v ? { playing: !!(v.currentTime > 0 && !v.paused && !v.ended), t: v.currentTime, dur: v.duration || 0, muted: v.muted } : null, quality: cur ? cur.innerText.trim() : '', hasPlayer: !!document.querySelector('.vjs-subs-caps-button'), sec: !!document.querySelector('[id*=finishStatus-]') }; }",
+  "expect": {
+    "readyState": "complete",
+    "video.playing": true,
+    "video.muted": { "anyOf": [true, false] },
+    "video.dur": { "min": 1 },
+    "quality": { "matches": "普清|标清|流畅|高清|超清" },
+    "hasPlayer": true,
+    "sec": true
+  }
+}

@@ -1,0 +1,48 @@
+# ===== 构建产物 / 框架缓存 =====
+node_modules/
+dist/
+*.tsbuildinfo
+.eslintcache
+coverage/
+
+# ===== 锁文件（npm 项目应提交 package-lock.json）=====
+pnpm-lock.yaml
+yarn.lock
+# 若确定纯 npm，可改用 *.lock 并删除上面两行
+
+# ===== 凭据与本地数据，永不入库 =====
+.key.pem
+.key.b64
+*.pem
+*.key
+.ext-id
+.env
+mooc_token.json
+
+# ===== 本地产物 =====
+# dev CDP 专用 Chrome 用户目录（含 cookie/token，永不入库）
+.chrome-debug-profile/
+*.log
+tests/e2e-shots/
+extension-store.zip
+
+# ===== AI agent / impeccable 设计工具（本地安装，含 20MB 平台二进制，不入库）=====
+.pi/
+.env.submit
+.workbuddy/
+# 应用发布标记（本地生成，随目录走）
+.wbapp_*.genie
+
+# ===== 系统 / 编辑器 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ===== 临时文件 =====
+.tmp-*
+.tmp/
+
+# 源码包重建验证的临时目录
+.source-review/

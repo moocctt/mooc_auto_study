@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- 学习进度助手: 好奇的书本 + 进度书签 (对象/动作/情绪 = 书 + 向上进度 + 好奇微笑) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#124A31"/>
+      <stop offset="0.55" stop-color="#1F6F4A"/>
+      <stop offset="1" stop-color="#2E8B5F"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FDDA34"/>
+      <stop offset="1" stop-color="#C98A3E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景: 品牌绿 (edge-to-edge, 圆角) -->
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="url(#bg)"/>
+
+  <!-- 书本: 两片大圆角块 + 重描边, 轻微倾斜 -->
+  <g transform="rotate(-7 64 68)">
+    <!-- 书脊(page block) -->
+    <rect x="30" y="34" width="70" height="62" rx="16" fill="#E8F2EC" stroke="#16211C" stroke-width="7"/>
+    <!-- 封面 -->
+    <rect x="24" y="28" width="70" height="62" rx="16" fill="#F8F6F5" stroke="#16211C" stroke-width="7"/>
+    <!-- 书页线: 一条宽线即可在 16px 存活 -->
+    <path d="M38 76 h30" stroke="#8FBFA6" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <!-- 进度书签(唯一配件): 3/4 高, 底部燕尾 -->
+  <g transform="rotate(-7 64 68)">
+    <path d="M80 22 h16 v34 l-8 -7 -8 7 z" fill="url(#ribbon)" stroke="#16211C" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 表情: 双眼 + 小微笑(略偏, 带一点好奇) -->
+  <g transform="rotate(-7 64 68)">
+    <circle cx="49" cy="53" r="6.4" fill="#16211C"/>
+    <circle cx="72" cy="51" r="6.4" fill="#16211C"/>
+    <circle cx="51" cy="51" r="2.1" fill="#F8F6F5"/>
+    <circle cx="74" cy="49" r="2.1" fill="#F8F6F5"/>
+    <path d="M52 65 q7 6 14 2" stroke="#16211C" stroke-width="5.4" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

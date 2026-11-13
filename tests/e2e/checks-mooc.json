@@ -1,0 +1,12 @@
+{
+  "_comment": "学院页面断言: 页面就绪 + 扩展内容脚本注入形态（守卫节点由内容脚本维护时在此扩展）。用法: node <skill>/scripts/cdp.mjs verify --base http://127.0.0.1:9223 --checks tests/checks-mooc.json",
+  "urlIncludes": "mooc.ctt.cn",
+  "type": "page",
+  "expression": "() => ({ url: location.href, readyState: document.readyState, hash: location.hash, hasVideo: !!document.querySelector('video'), bodyLen: document.body ? document.body.innerText.length : 0 })",
+  "expect": {
+    "readyState": "complete",
+    "url": { "matches": "^https://mooc\\.ctt\\.cn/" },
+    "hash": { "matches": "^#/(task|home|center|study)" },
+    "bodyLen": { "min": 50 }
+  }
+}

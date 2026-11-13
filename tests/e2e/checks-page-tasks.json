@@ -1,0 +1,15 @@
+{
+  "_comment": "课程页: 状态分段/类型筛选/搜索框/任务行渲染（自恢复: 若停在课程库子标签先切回任务列表）",
+  "urlIncludes": "console.html",
+  "hash": "#/tasks",
+  "type": "page",
+  "expression": "async () => { const mytab = [...document.querySelectorAll('button')].find(b => /^(我的任务|任务)$/.test(b.innerText.trim())); if (mytab) { mytab.click(); await new Promise(r => setTimeout(r, 900)); } const inp = document.querySelector('input[type=search]'); return { readyState: document.readyState, hash: location.hash, brand: document.querySelector('.app-shell h1')?.innerText || '', search: !!inp, segs: document.querySelectorAll('button').length, rows: document.querySelectorAll('main a, main [class*=card], main li').length }; }",
+  "expect": {
+    "readyState": "complete",
+    "hash": { "contains": "#/tasks" },
+    "brand": "课程",
+    "search": true,
+    "segs": { "min": 4 },
+    "rows": { "min": 1 }
+  }
+}

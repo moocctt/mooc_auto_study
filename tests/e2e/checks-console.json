@@ -1,0 +1,13 @@
+{
+  "_comment": "扩展控制台页断言: 顶栏/任务列表/运行日志入口就绪。用法: node <skill>/scripts/cdp.mjs verify --base http://127.0.0.1:9223 --checks tests/checks-console.json",
+  "urlIncludes": "console.html",
+  "type": "page",
+  "expression": "() => ({ url: location.href, readyState: document.readyState, brand: document.querySelector('.app-shell h1')?.innerText || '', logBtn: !!document.querySelector('header button[aria-label=\"运行日志\"]'), taskCards: document.querySelectorAll('main a, main [class*=card], main li').length, footerBuild: /build|构建/.test(document.body.innerText) })",
+  "expect": {
+    "readyState": "complete",
+    "url": { "contains": "console.html" },
+    "brand": { "matches": "\\S+" },
+    "logBtn": true,
+    "taskCards": { "min": 1 }
+  }
+}

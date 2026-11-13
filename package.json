@@ -1,0 +1,26 @@
+{
+  "name": "tobacco-mooc-extension",
+  "version": "2.11.3",
+  "private": true,
+  "type": "module",
+  "description": "烟草网络学院学习助手 —— 原生 MV3 浏览器扩展（无构建工具链, extension/ 即加载目标）",
+  "scripts": {
+    "test:unit": "vitest run",
+    "test": "vitest run",
+    "test:e2e": "node tests/e2e/e2e.mjs",
+    "dev": "sh scripts/dev-chrome.sh",
+    "dev:ready": "node scripts/dev-ready.mjs",
+    "extension:check": "node scripts/ensure-extension.mjs --check",
+    "extension:ensure": "node scripts/ensure-extension.mjs",
+    "extension:pin": "node scripts/pin-extension.mjs",
+    "privacy:sync": "node scripts/sync-privacy.mjs",
+    "privacy:check": "node scripts/sync-privacy.mjs --check",
+    "release:check": "node scripts/sync-version.mjs --check",
+    "cdp": "node scripts/cdp-eval.mjs",
+    "icons:grey": "node scripts/make-grey-icons.mjs"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.0",
+    "ws": "^8.22.1"
+  }
+}

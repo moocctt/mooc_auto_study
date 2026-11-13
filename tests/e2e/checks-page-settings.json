@@ -1,0 +1,15 @@
+{
+  "_comment": "设置页: 账号管理/偏好/隐私与导出入口（tab 化: 导出备份在「偏好」tab, 先点再断言）。ics 日历区块被 unlocked 门控（演示模式隐藏，属设计行为）",
+  "urlIncludes": "console.html",
+  "hash": "#/settings",
+  "type": "page",
+  "expression": "async () => { const tab=[...document.querySelectorAll('[role=tab]')].find(x=>x.innerText.includes('偏好')); if(tab) tab.click(); await new Promise(r=>setTimeout(r,700)); return { readyState: document.readyState, hash: location.hash, brand: document.querySelector('.app-shell h1')?.innerText || '', ics: /\\.ics/.test(document.body.innerText), backup: /导出备份/.test(document.body.innerText), gated: /自动化|隐私/.test(document.body.innerText), bodyText: document.body.innerText.length } }",
+  "expect": {
+    "readyState": "complete",
+    "hash": { "contains": "#/settings" },
+    "brand": "设置",
+    "backup": true,
+    "gated": true,
+    "bodyText": { "min": 100 }
+  }
+}

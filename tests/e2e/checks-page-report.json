@@ -1,0 +1,14 @@
+{
+  "_comment": "概览页: 学时账单/截止提醒/统计渲染",
+  "urlIncludes": "console.html",
+  "hash": "#/report",
+  "type": "page",
+  "expression": "() => ({ readyState: document.readyState, hash: location.hash, brand: document.querySelector('.app-shell h1')?.innerText || '', bodyText: document.body.innerText.length, hasLog: !!document.querySelector('header button[aria-label=\"运行日志\"]') })",
+  "expect": {
+    "readyState": "complete",
+    "hash": { "contains": "#/report" },
+    "brand": "概览",
+    "bodyText": { "min": 100 },
+    "hasLog": true
+  }
+}
