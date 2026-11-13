@@ -1,0 +1,95 @@
+/* Impeccable 设计令牌 —— hex 值的唯一来源是 client/src/theme.ts，
+   :root 变量由 main.tsx 在渲染前注入；这里只写 var(…) 引用。
+   设计原则与取舍见 .impeccable.md。 */
+
+/* 非颜色令牌（字阶/字体/动效）：固定值，不随主题变 */
+:root {
+  /* type roles（固定 rem 刻度，应用 UI 不用流体字号） */
+  --text-caption: 0.75rem;
+  --text-secondary: 0.875rem;
+  --text-body: 1rem;
+  --text-subhead: 1.25rem;
+  --text-heading: 1.5rem;
+
+  /* 显示层：宋体系，呼应公文气质；仅品牌、标题与 KPI 大数字 */
+  --font-display: 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ---------- 品牌 ---------- */
+.brand {
+  padding: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.brand-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- 数据 ---------- */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 热力图（签名组件） ---------- */
+.heat-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  transition: transform 120ms var(--ease-out-quart), box-shadow 120ms var(--ease-out-quart);
+}
+.heat-cell:hover {
+  transform: scale(1.35);
+  box-shadow: 0 0 0 1px var(--green);
+  position: relative;
+  z-index: 1;
+}
+.heat-legend-label {
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heat-cell { transition: none; }
+  .heat-cell:hover { transform: none; }
+}
+
+/* ---------- 小屏适配 ---------- */
+@media (max-width: 991px) {
+  /* Sider 折叠后只留图标：品牌文字隐藏并居中圆点，避免溢出压到顶栏 */
+  .brand-text { display: none; }
+  .brand { text-align: center; padding: 16px 8px; }
+  .brand > span:first-child { margin-right: 0; }
+}
+
+@media (max-width: 640px) {
+  .page-content { padding: 12px; }
+  .app-header { padding-inline: 12px; }
+  .app-header .brand-title { font-size: 0.9375rem; }
+  /* 卡头允许折行：热力图的长汇总在标题下另起一行 */
+  .ant-card-head { flex-wrap: wrap; row-gap: 4px; }
+  .ant-card-head-title { overflow: visible; }
+  .ant-card-extra { margin-inline-start: 0; white-space: normal; }
+  /* 图标导航栏收窄，给内容让位 */
+  .ant-layout-sider { flex: 0 0 56px !important; max-width: 56px !important; min-width: 56px !important; width: 56px !important; }
+  .ant-layout-sider .brand { padding: 12px 8px !important; }
+}
+
+@media (max-width: 380px) {
+  /* 超窄屏：热力图格子与间隙同步缩小，避免横向滚动 */
+  .heat-cell { width: 10px; height: 10px; }
+}
+
+/* ---------- 页面内容 ---------- */
+.page-content { padding: 24px 16px; }
+
+/* ---------- KPI ---------- */
+.kpi-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}

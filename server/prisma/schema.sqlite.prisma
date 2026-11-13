@@ -1,0 +1,52 @@
+// 开发 schema（SQLite）。与 schema.postgres.prisma 的 model 保持逐字段一致。
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String   @id @default(uuid())
+  username            String   @unique
+  passwordHash        String
+  platformUsername    String?
+  platformPasswordEnc String?
+  platformCompany     String   @default("全行业")
+  createdAt           DateTime @default(now())
+  sessions            Session[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EngineRun {
+  id        String    @id @default(uuid())
+  userId    String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  trigger   String    @default("manual") // manual | schedule
+  reason    String?   // completed | quota | stopped | error
+  submitted Int?
+
+  @@index([userId, startedAt])
+}
+
+model EngineSchedule {
+  userId     String  @id
+  enabled    Boolean @default(false)
+  hour       Int     @default(9)
+  minute     Int     @default(0)
+  lastRunDay String?
+
+  @@index([enabled])
+}

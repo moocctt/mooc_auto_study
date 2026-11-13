@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dev.db
+*.db
+.git
+screenshots
+docs
+*.log
+client/dist
+server/dist

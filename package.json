@@ -1,0 +1,23 @@
+{
+  "name": "tobacco-mooc-study-helper",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:db": "cd server && npm run db:push",
+    "dev": "concurrently -n server,client -c green,cyan \"cd server && npm run dev\" \"cd client && npm run dev\"",
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "start": "cd server && npm run start"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "@prisma/client@6.5.0": true,
+    "prisma@6.5.0": true
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

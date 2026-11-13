@@ -1,0 +1,49 @@
+# 部署栈：PostgreSQL + 应用 + Nginx 反代（TLS 终结在宿主机或再加一层）
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mooc
+      POSTGRES_USER: mooc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?需要在 .env 里设置}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mooc -d mooc"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://mooc:${POSTGRES_PASSWORD}@db:5432/mooc
+      PLATFORM_ENC_KEY: ${PLATFORM_ENC_KEY:?需要在 .env 里设置}
+      PORT: 8080
+    expose:
+      - "8080"
+    healthcheck:
+      # 未登录时 /api/auth/me 返回 401——能应答即视为就绪（db push 可能仍在跑）
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/api/auth/me').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  db-data:
