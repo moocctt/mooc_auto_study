@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="heroTitle heroDesc">
+  <title id="heroTitle">烟草网络学院学习助手：两个油猴脚本，快速刷课与无人值守两种模式</title>
+  <desc id="heroDesc">标题说明两个脚本共用同一目的：把必修学时走完。下方左右并排两块悬浮面板实拍，左侧橙色为快速刷课模式，右侧绿色为无人值守模式，各含真实运行日志。</desc>
+
+  <rect width="1200" height="440" rx="24" fill="#0B1118"/>
+
+  <!-- 标题区 -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif">
+    <text x="56" y="60" font-size="20" fill="#7A8A9E" letter-spacing="2.5"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">TAMPERMONKEY USERSCRIPT · mooc.ctt.cn</text>
+
+    <text x="56" y="118" font-size="46" font-weight="700" fill="#E8EEF6">烟草网络学院 · 学习助手</text>
+
+    <text x="56" y="162" font-size="21" fill="#A8B6C8">两个脚本，一个目的：把必修学时走完。</text>
+    <text x="56" y="192" font-size="21" fill="#A8B6C8">一个几分钟刷完，一个照真人节奏挂着播完。</text>
+
+    <!-- 右上：选哪个 -->
+    <text x="1144" y="72" font-size="18" fill="#7A8A9E" text-anchor="end">选一个，不要同时开</text>
+    <text x="1144" y="112" font-size="20" fill="#F2A66B" text-anchor="end">⚡ 快速刷课 · 几分钟</text>
+    <text x="1144" y="146" font-size="20" fill="#6FD39B" text-anchor="end">▶ 无人值守 · 按课件时长</text>
+  </g>
+
+  <line x1="56" y1="214" x2="1144" y2="214" stroke="#22303F" stroke-width="1"/>
+
+  <!-- ⚡ 快速刷课面板 -->
+  <g>
+    <rect x="56" y="228" width="524" height="180" rx="10" fill="#111A24" stroke="#22303F"/>
+    <text x="80" y="262" font-size="22" font-weight="700" fill="#F2A66B"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">⚡ 快速刷课</text>
+    <rect x="436" y="242" width="120" height="30" rx="15" fill="#C25E12"/>
+    <text x="496" y="263" font-size="18" fill="#FFFFFF" text-anchor="middle"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">分钟级</text>
+    <line x1="80" y1="280" x2="556" y2="280" stroke="#22303F" stroke-width="1"/>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#A8B6C8">
+      <text x="80" y="310">[21:04:13] 小节 12 个, 待处理 7</text>
+      <text x="80" y="336" fill="#F2A66B">[21:04:15]   → 时长已用完 (共 630s)</text>
+      <text x="80" y="362" fill="#6FD39B">[21:04:16] ✅ 全部任务处理完毕</text>
+    </g>
+    <text x="80" y="392" font-size="18" fill="#7A8A9E"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">createTime −660s · 90s/轮 · 轮间 1.2s</text>
+  </g>
+
+  <!-- ▶ 无人值守面板 -->
+  <g>
+    <rect x="620" y="228" width="524" height="180" rx="10" fill="#111A24" stroke="#22303F"/>
+    <text x="644" y="262" font-size="22" font-weight="700" fill="#6FD39B"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">▶ 无人值守</text>
+    <rect x="1000" y="242" width="120" height="30" rx="15" fill="#1F7A46"/>
+    <text x="1060" y="263" font-size="18" fill="#FFFFFF" text-anchor="middle"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">小时级</text>
+    <line x1="644" y1="280" x2="1120" y2="280" stroke="#22303F" stroke-width="1"/>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#A8B6C8">
+      <text x="644" y="310">[21:04:13] 小节 12 个, 待处理 7</text>
+      <text x="644" y="336" fill="#6FD39B">[21:04:44] ⏳ 单元一 64%</text>
+      <text x="644" y="362" fill="#6FD39B">[23:12:02] ✅ 全部任务处理完毕</text>
+    </g>
+    <text x="644" y="392" font-size="18" fill="#7A8A9E"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">createTime −30s · 30s/轮 · 真实播放</text>
+  </g>
+</svg>
