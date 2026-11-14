@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330"
+     role="img" aria-labelledby="t d" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">
+  <title id="t">mooc-cli：终端里的学时自动化</title>
+  <desc id="d">终端窗口演示：--list 看学时、--search 搜课程、--course 学完一门课。</desc>
+  <rect width="1200" height="330" fill="#0B0F0D"/>
+  <g id="title-block" transform="translate(56 78)">
+    <text x="0" y="0" font-size="18" fill="#3BD671">CLI · TUI · 纯 HTTP</text>
+    <text x="0" y="62" font-size="44" font-weight="800" fill="#E6EDE9">终端里把课上完</text>
+    <text x="0" y="112" font-size="20" fill="#7C8C85">--list ｜ --search ｜ --course ｜ --today</text>
+    <text x="0" y="152" font-size="20" fill="#E6EDE9">不依赖浏览器，扫码用手机完成。</text>
+    <text x="0" y="184" font-size="20" fill="#7C8C85">学时账本、缺口、计划，都在一个命令行里。</text>
+  </g>
+  <g id="terminal"><rect x="460" y="56" width="690" height="220" rx="12" fill="#11171A"/>
+<rect x="460" y="56" width="690" height="34" rx="12" fill="#1A2024"/>
+<circle cx="478" cy="73" r="5" fill="#FF5F57"/>
+<circle cx="496" cy="73" r="5" fill="#FEBC2E"/>
+<circle cx="514" cy="73" r="5" fill="#28C840"/>
+<text x="805.0" y="78" text-anchor="middle" font-size="16" fill="#7C8C85" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">mooc — 学时自动化</text>
+<text x="480" y="118" font-size="20" fill="#E6EDE9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$ mooc --list</text>
+<text x="480" y="144" font-size="20" fill="#7C8C85" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">  网络自学 133.0 / 50.0  集中培训 64.0 / 90.0</text>
+<text x="480" y="170" font-size="20" fill="#E6EDE9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$ mooc --search 消防安全</text>
+<text x="480" y="196" font-size="20" fill="#7C8C85" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">  [搜索] 命中 25 条（课程库，含未加入任务的）</text>
+<text x="480" y="222" font-size="20" fill="#E6EDE9" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">$ mooc --course "消防安全管理"</text>
+<text x="480" y="248" font-size="20" fill="#3BD671" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">  OK 完成，共 7 轮 / 2460s</text>
+<rect x="480" y="256" width="10" height="20" fill="#3BD671"/></g>
+</svg>

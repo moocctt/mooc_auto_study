@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="120" viewBox="0 0 1200 120"
+     role="img" aria-labelledby="t d" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">
+  <title id="t">怎么用</title>
+  <desc id="d">--list / --search / --course / --today</desc>
+  <rect width="1200" height="120" fill="#0B0F0D"/>
+  <rect x="0" y="118" width="1200" height="2" fill="#1A2024"/>
+  <text x="56" y="52" font-size="18" fill="#3BD671">01</text>
+  <text x="56" y="94" font-size="36" font-weight="800" fill="#E6EDE9">怎么用</text>
+  <text x="1180" y="66" text-anchor="end" font-size="18" fill="#7C8C85">--list / --search / --course / --today</text>
+  <rect x="1100" y="90" width="10" height="20" fill="#3BD671"/>
+</svg>

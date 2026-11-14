@@ -1,0 +1,8 @@
+# 运行时依赖（TUI / CLI / 扫码登录）
+requests>=2.28          # 平台 HTTP 调用
+pycryptodome>=3.18      # Crypto.Cipher.AES：字段加密/解密（漏了会 ImportError）
+rich>=13.0              # TUI 文本渲染（二维码字符画、日志）
+textual>=0.47           # TUI 框架（run_worker group/exclusive、ModalScreen）
+# 扫码登录（仅 Q / qr 子命令需要；缺了会在扫码时提示）
+qrcode>=7.4             # 本地渲染二维码（服务端对微信通道只登记 uuid）
+pillow>=10.0            # qrcode 的 PNG 输出 + 终端字符画转换

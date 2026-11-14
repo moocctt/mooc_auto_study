@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 250" width="1160" height="250" role="img" aria-label="tobacco-mooc-study 工作流：登录鉴权 → 数据采集 → 计划编排 → 交付报告">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#124A31"/>
+      <stop offset="100%" stop-color="#2E8B5F"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1160" height="250" rx="16" fill="#F7FAF8"/>
+  <rect x="0.5" y="0.5" width="1159" height="249" rx="16" fill="none" stroke="#E1EBE5"/>
+
+  <text x="34" y="40" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="13" fill="#6B7A73" letter-spacing="2.4">tobacco-mooc-study · 工作流</text>
+  <text x="1126" y="40" text-anchor="end" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#9AA7A1">纯 HTTP · 无需浏览器</text>
+
+  <!-- step 1 -->
+  <rect x="30" y="62" width="236" height="150" rx="14" fill="#FFFFFF" stroke="#DDE5E0"/>
+  <rect x="30" y="62" width="236" height="5" rx="2.5" fill="url(#g1)"/>
+  <circle cx="58" cy="98" r="14" fill="#E8F2EC"/>
+  <text x="58" y="103" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="700" fill="#1F6F4A">1</text>
+  <text x="84" y="104" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="16" font-weight="700" fill="#16211C">登录鉴权</text>
+  <text x="50" y="138" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">密码 / 微信扫码 / APP 扫码</text>
+  <text x="50" y="162" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">token 加密落盘（DPAPI + AES）</text>
+  <text x="50" y="188" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="11.5" fill="#8A9A93">有效期约 4 小时（APP 通道 30 天）</text>
+
+  <path d="M272,137 L294,137" stroke="#9DBBAE" stroke-width="2" stroke-linecap="round"/><path d="M294,131 L302,137 L294,143 z" fill="#9DBBAE"/>
+
+  <!-- step 2 -->
+  <rect x="306" y="62" width="236" height="150" rx="14" fill="#FFFFFF" stroke="#DDE5E0"/>
+  <rect x="306" y="62" width="236" height="5" rx="2.5" fill="url(#g1)"/>
+  <circle cx="334" cy="98" r="14" fill="#E8F2EC"/>
+  <text x="334" y="103" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="700" fill="#1F6F4A">2</text>
+  <text x="360" y="104" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="16" font-weight="700" fill="#16211C">数据采集</text>
+  <text x="326" y="138" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">学习任务 / 学时 / 班级详情</text>
+  <text x="326" y="162" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">幂等合并进本地任务库</text>
+  <text x="326" y="188" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="11.5" fill="#8A9A93">网络自学 + 集中培训两组口径</text>
+
+  <path d="M548,137 L570,137" stroke="#9DBBAE" stroke-width="2" stroke-linecap="round"/><path d="M570,131 L578,137 L570,143 z" fill="#9DBBAE"/>
+
+  <!-- step 3 -->
+  <rect x="582" y="62" width="236" height="150" rx="14" fill="#FFFFFF" stroke="#DDE5E0"/>
+  <rect x="582" y="62" width="236" height="5" rx="2.5" fill="url(#g1)"/>
+  <circle cx="610" cy="98" r="14" fill="#E8F2EC"/>
+  <text x="610" y="103" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="700" fill="#1F6F4A">3</text>
+  <text x="636" y="104" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="16" font-weight="700" fill="#16211C">计划编排</text>
+  <text x="602" y="138" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">按在职状态算每日可学学时</text>
+  <text x="602" y="162" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">必修 / 临期优先，线下单列</text>
+  <text x="602" y="188" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="11.5" fill="#8A9A93">输出可执行的 14 天日程</text>
+
+  <path d="M824,137 L846,137" stroke="#9DBBAE" stroke-width="2" stroke-linecap="round"/><path d="M846,131 L854,137 L846,143 z" fill="#9DBBAE"/>
+
+  <!-- step 4 -->
+  <rect x="858" y="62" width="272" height="150" rx="14" fill="#FFFFFF" stroke="#DDE5E0"/>
+  <rect x="858" y="62" width="272" height="5" rx="2.5" fill="url(#g1)"/>
+  <circle cx="886" cy="98" r="14" fill="#E8F2EC"/>
+  <text x="886" y="103" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="700" fill="#1F6F4A">4</text>
+  <text x="912" y="104" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="16" font-weight="700" fill="#16211C">交付报告</text>
+  <text x="878" y="138" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">学习计划（MD / HTML 可点击）</text>
+  <text x="878" y="162" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="12.5" fill="#3D4A44">年度报告（A4 分页，自动翻页）</text>
+  <text x="878" y="188" font-family="PingFang SC, Microsoft YaHei, system-ui, sans-serif" font-size="11.5" fill="#8A9A93">任务清单 CSV / 原始 JSON</text>
+</svg>

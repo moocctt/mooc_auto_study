@@ -1,0 +1,42 @@
+name: tests
+
+on:
+  push:
+    branches: [main, skill, tui, cli]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    if: github.ref_name == 'main' || github.ref_name == 'tui' || github.ref_name == 'cli'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 安装依赖
+        run: >-
+          pip install requests pycryptodome qrcode pillow rich textual
+          pytest "pytest-cov>=5"
+      - name: 编译检查
+        run: python -m compileall -q .
+      - name: 测试（对齐功能集 + 覆盖率）
+        run: >-
+          python -m pytest tests -q
+          --cov=mooc_auto_study --cov=mooc_api_login
+          --cov=mooc_client --cov=mooc_tasks
+          --cov-report=term-missing
+      - name: 冒烟：中文帮助在非 UTF-8 输出编码下也不能崩
+        shell: bash
+        run: |
+          for f in mooc_tui.py mooc_auto_study.py; do
+            PYTHONIOENCODING=cp1252 python "$f" --help > /dev/null || exit 1
+          done

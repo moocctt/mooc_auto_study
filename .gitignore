@@ -1,0 +1,23 @@
+# 凭据（.env 含明文账密，禁止入库；示例文件除外）
+.env
+!.env.example
+
+# 个人数据与凭据（本地缓存，禁止入库）
+data/
+*.session.dat
+session.dat
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 编辑器 / 打包产物
+.vscode/
+*.zip
+out/
+
+# TUI 扫码 png 落盘产物
+mooc-qr-*.png
+# 登录 token 缓存（mooc_api_login 写在脚本目录，别让它进仓库）
+mooc_token*.json
