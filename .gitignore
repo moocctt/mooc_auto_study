@@ -14,3 +14,5 @@ mooc_token*.json
 
 # 编辑器本地配置
 .vscode/
+
+docs/shots/live-*.json

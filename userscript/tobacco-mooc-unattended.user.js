@@ -733,6 +733,7 @@
     onStart
   }) {
     let box, logEl, statusEl, btnStart;
+    const pendingLogs = [];
     function log(msg) {
       const t = (/* @__PURE__ */ new Date()).toLocaleTimeString("zh-CN", { hour12: false });
       if (logEl) {
@@ -741,6 +742,10 @@
         logEl.appendChild(line);
         while (logEl.children.length > 60) logEl.removeChild(logEl.firstChild);
         logEl.scrollTop = logEl.scrollHeight;
+      } else {
+        // boot 先于 mount 时（如 tokenFromStorage 的「令牌已捕获」），暂存起来等面板挂上再补显
+        pendingLogs.push(`[${t}] ${msg}`);
+        if (pendingLogs.length > 60) pendingLogs.shift();
       }
       console.log(`[${consoleTag}] ${msg}`);
     }
@@ -851,6 +856,15 @@
       logEl = box.querySelector(`#${prefix}-log`);
       statusEl = box.querySelector(`#${prefix}-status`);
       btnStart = box.querySelector(`#${prefix}-start`);
+      if (pendingLogs.length) {
+        for (const msg of pendingLogs.splice(0)) {
+          const line = document.createElement("div");
+          line.textContent = msg;
+          logEl.appendChild(line);
+        }
+        while (logEl.children.length > 60) logEl.removeChild(logEl.firstChild);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
       makeDraggable(box.querySelector(`.${prefix}-head`), box, () => setCollapsed(!state2.collapsed));
       btnStart.onclick = (e) => {
         e.stopPropagation();
@@ -989,7 +1003,7 @@
     }
   };
   var state = { running: false, stopFlag: false, course: "", section: "", round: 0, submitted: 0, collapsed: false, pinned: false, stacked: false };
-  var hunter = createTokenHunter({});
+  var hunter = createTokenHunter({ log: (m) => panel.log(m) }); // panel.log lazy ref: panel exists by boot time, so storage-restored token shows in panel too
   var api = createApi({ hunter, gm, log: (m) => panel.log(m) });
   var config = {
     getStep: () => 30,

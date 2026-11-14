@@ -1,4 +1,4 @@
-﻿# 测试与优化报告 · 油猴脚本（2026-11-14）
+# 测试与优化报告 · 油猴脚本（2026-11-14）
 
 对象：`moocctt/tobacco-mooc-study` 的 `main` 分支
 
@@ -234,6 +234,45 @@ HTTP 401（印证 api.js 只认 401 为登录失效）；`/oauth/api/v1/setting`
 ## 8. 残留风险
 
 - 单测覆盖的是「纯逻辑 + 引擎分支 + mock 主链路」，**真实播放器交互（`playSection`）与
-  登录后的完整学习流程没有被端到端验证**：需要真实账号，会顶掉正常会话且有风控风险，
-  本次只做了未登录态冒烟。
+  登录后的完整刷课学习流程没有被端到端验证**：需要真实账号，会顶掉正常会话且有风控风险。
+  登录态下的真机验证见 §9（面板挂载、令牌捕获、runAll 主链路已验证；全自动刷完整门课仍未跑，
+  因为该账号当时任务已全部完成，且不应在用户账号上产生真实学习行为）。
 - 会话锁依赖 `GM_getValue` 的跨标签页一致性，Tampermonkey 默认支持，脚本管理器差异未验证。
+
+## 9. 真机测试（2026-11-14 晚，Chrome + 真实登录态）
+
+### 9.1 方法
+
+- 复用本机 Chrome 的登录态：mooc.ctt.cn 的登录态在 `localStorage.token`（不依赖 cookie），
+  只复制 `Local State`/`Preferences`/`Local Storage`/`Session Storage` 到临时 profile，
+  用独立 Chrome 实例（`--remote-debugging-port=19899`）打开，登录态直接生效。
+- `tests/live-run2.cjs`（手工验证工具，不在 CI 跑）：CDP 附加 → 注入 GM 垫片 + userscript →
+  面板交互 / `runAll` / 截图。截图前先在 DOM 文本节点就地脱敏（姓名→张三、手机号→139\*\*\*\*0706、
+  令牌后 8 位→\*\*\*\*\*\*\*\*），照片类个人信息（头像）事后用 PIL 像素化。
+
+### 9.2 结果
+
+| 验证点 | 结果 |
+| --- | --- |
+| 登录态复用 | ✓ 页面显示已登录（截图 live-01） |
+| 面板挂载 / 折叠 / 拖拽 | ✓（live-02、live-05） |
+| `tokenFromStorage` 启动捕获 | ✓ 面板出现「令牌已捕获 (\*\*\*\*\*\*\*\*)」（live-05） |
+| `runAll` 主链路（真实 API） | ✓ `当前不是课程/专题页 → 执行个人学习任务: 未完成 0 门` → `✅ 全部任务处理完毕`（live-04；该账号任务当时已全部完成，与 Python 侧结论一致） |
+| 未登录态（此前无头 Edge 冒烟） | ✓ `authFailed:true`，面板提示「✗ 未捕获到令牌…」，不误走自动刷新 |
+
+### 9.3 真机发现并已修复的缺陷（两脚本同修，36 单测仍全绿）
+
+1. **boot 的「令牌已捕获」日志永远丢失**：boot 先 `hunter.tokenFromStorage()` 后 `panel.mount()`，
+   此时 `logEl` 不存在，`log()` 静默丢弃。修复：`createPanel` 增加 `pendingLogs` 暂存（上限 60），
+   `mount()` 建 `logEl` 后冲洗。
+2. **模块级 hunter 的 log 是空函数**：`var hunter = createTokenHunter({})` 没接面板日志，
+   即使修了 1，从 storage 恢复令牌也不会显示。修复：
+   `createTokenHunter({ log: (m) => panel.log(m) })`（惰性引用，boot 时 panel 已就绪）。
+
+### 9.4 截图（docs/shots/，均已脱敏）
+
+- `live-01-home-loggedin.png`：登录后首页（头像像素化）。
+- `live-02-panel-token-captured.png`：面板挂载。
+- `live-03-runall-real-45s.png`：`runAll` 运行 45s 后停止。
+- `live-04-final.png`：`runAll` 结束日志（未完成 0 门 → 全部任务处理完毕）。
+- `live-05-token-captured.png`：「令牌已捕获 (\*\*\*\*\*\*\*\*)」面板日志 + 资料卡（头像与姓名像素化）。
