@@ -1,0 +1,25 @@
+<!--
+二维码内联渲染模板（用于 show_widget 的 widget_code 参数）
+
+占位符：
+  {{B64}}    二维码 PNG 的 base64（不含 data: 前缀）
+  {{TITLE}}  标题，如「微信扫一扫登录」/「APP 扫一扫登录」
+  {{HINT}}   扫法提示
+  {{TTL}}    有效期秒数（整数，静态文字）
+  {{UUID}}   本轮 uuid 前 8 位
+
+关键：
+  1. src 必须是 data:image/png;base64,...，本地路径 / file 协议在 widget 里都不生效；
+  2. 不要放 <script>（含倒计时）。带 JS 的 widget 需要宿主起沙箱渲染管道，
+     会长时间停在「正在渲染组件」，用户因此错过 1 分钟有效期。
+     有效期用静态文字说明即可，过期换新码由 Agent 再发一条消息。
+-->
+<div style="display:flex; gap:18px; align-items:center; padding:1rem 1.25rem; background: var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); max-width:520px;">
+  <img src="data:image/png;base64,{{B64}}" alt="{{TITLE}}" style="width:{{PX}}px; height:{{PX}}px; border-radius:8px; image-rendering: pixelated; flex:none;">
+  <div style="min-width:0;">
+    <p style="margin:0 0 4px; font-size:15px; font-weight:500;">{{TITLE}}</p>
+    <p style="margin:0 0 10px; font-size:13px; color: var(--color-text-secondary); line-height:1.6;">{{HINT}}</p>
+    <p style="margin:0 0 8px; font-size:13px; font-weight:500; color: var(--color-text-info);">约 {{TTL}} 秒内有效</p>
+    <p style="margin:0; font-size:12px; color: var(--color-text-tertiary); line-height:1.6;">uuid {{UUID}} · 过期自动换新码</p>
+  </div>
+</div>

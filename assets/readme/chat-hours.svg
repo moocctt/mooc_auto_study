@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300"
+     role="img" aria-labelledby="t d" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">
+  <title id="t">学时与缺口</title>
+  <desc id="d">与 AI 助手的真实对话截图：两组学时账本与"不能互抵"的提醒。</desc>
+  <rect width="1200" height="300" fill="#F4F8F5"/>
+  <rect x="170" y="24" width="860" height="252" rx="20" fill="#0F2419"/>
+  <text x="194" y="62" font-size="18" fill="#DCEFE2" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">学时与缺口</text>
+  <text x="1006" y="62" text-anchor="end" font-size="18" fill="#7BA893" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">已连接</text>
+  <line x1="170" y1="78" x2="1030" y2="78" stroke="#1E3A2C"/>
+  <rect x="210" y="98" width="812" height="52" rx="16" fill="#1F6F4A"/>
+  <text x="230" y="130" font-size="20" fill="#FFFFFF" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">帮我看看到底还差多少学时</text>
+  <rect x="178" y="164" width="812" height="96" rx="16" fill="#FFFFFF"/>
+  <text x="198" y="198" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">网络自学  128 / 50 · 已达标</text>
+  <text x="198" y="220" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">集中培训   64 / 90 · 还差 26 学时</text>
+  <text x="198" y="242" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">网课学再多，也补不上面授那 26 学时。</text>
+</svg>

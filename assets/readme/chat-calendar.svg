@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320"
+     role="img" aria-labelledby="t d" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">
+  <title id="t">必修截止日进日历</title>
+  <desc id="d">与 AI 助手的真实对话截图：必修截止日发布为可订阅的日历地址。</desc>
+  <rect width="1200" height="320" fill="#F4F8F5"/>
+  <rect x="170" y="24" width="860" height="272" rx="20" fill="#0F2419"/>
+  <text x="194" y="62" font-size="18" fill="#DCEFE2" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">必修截止日进日历</text>
+  <text x="1006" y="62" text-anchor="end" font-size="18" fill="#7BA893" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">已连接</text>
+  <line x1="170" y1="78" x2="1030" y2="78" stroke="#1E3A2C"/>
+  <rect x="210" y="98" width="812" height="52" rx="16" fill="#1F6F4A"/>
+  <text x="230" y="130" font-size="20" fill="#FFFFFF" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">必修课的截止日期提醒我</text>
+  <rect x="178" y="164" width="812" height="118" rx="16" fill="#FFFFFF"/>
+  <text x="198" y="198" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">已生成 1 条必修截止日（课程名已脱敏）：</text>
+  <text x="198" y="224" font-size="18" fill="#1F6F4A" font-family="Menlo,Consolas,ui-monospace,monospace">gandli.github.io/mooc-calendar/mooc-gandli.ics</text>
+  <text x="198" y="252" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">【截止】必修 · 必修任务 #1（还差 56 天）</text>
+  <text x="198" y="274" font-size="18" fill="#6B7A73" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">手机日历添加订阅即可，提前 3 天提醒。</text>
+</svg>

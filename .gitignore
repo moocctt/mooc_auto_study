@@ -1,0 +1,19 @@
+# 个人数据与凭据（本地缓存，禁止入库）
+data/
+*.session.dat
+session.dat
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 编辑器 / 打包产物
+.vscode/
+*.zip
+out/
+
+# 运行时生成的二维码图与登录卡片（一次性凭据形态，不进版本库）
+qr-*.png
+qr-*.html
+login-card*.html

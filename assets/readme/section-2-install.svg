@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="120" viewBox="0 0 1200 120"
+     role="img" aria-labelledby="t d" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">
+  <title id="t">一条命令装好</title>
+  <desc id="d">npx skills add moocctt/tobacco-mooc-study#skill -g</desc>
+  <rect width="1200" height="120" fill="#FFFFFF"/>
+  <rect x="0" y="118" width="1200" height="2" fill="#F4F8F5"/>
+  <text x="56" y="52" font-size="18" fill="#E8A13A" font-family="Menlo,Consolas,ui-monospace,monospace">02</text>
+  <text x="56" y="94" font-size="36" font-weight="800" fill="#16241c">一条命令装好</text>
+  <text x="1180" y="66" text-anchor="end" font-size="20" fill="#6B7A73" font-family="Menlo,Consolas,ui-monospace,monospace">npx skills add moocctt/tobacco-mooc-study#skill -g</text>
+  <circle cx="1140" cy="94" r="6" fill="#E8A13A"/>
+  <circle cx="1156" cy="94" r="6" fill="#1F6F4A" opacity="0.55"/>
+  <circle cx="1172" cy="94" r="6" fill="#C9D8CE"/>
+</svg>

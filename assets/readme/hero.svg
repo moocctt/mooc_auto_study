@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="t d" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">
+  <title id="t">tobacco-mooc-study 主视觉</title>
+  <desc id="d">用中文对 AI 助手说需求，即可管理烟草网络学院的学时、计划与课程学习</desc>
+  <rect width="1200" height="400" fill="#F4F8F5"/>
+  <g id="title-block" transform="translate(56 54)">
+    <text x="0" y="0" font-size="18" fill="#E8A13A" font-family="Menlo,Consolas,ui-monospace,monospace" letter-spacing="3">AI SKILL · 烟草网络学院</text>
+    <text x="0" y="62" font-size="44" font-weight="800" fill="#16241c">跟 AI 助手说人话，</text>
+    <text x="0" y="114" font-size="44" font-weight="800" fill="#16241c">管好烟草网络学院</text>
+    <text x="0" y="162" font-size="20" fill="#6B7A73">看学时 · 排计划 · 把课学完 · 截止日进手机日历</text>
+    <text x="0" y="212" font-size="20" fill="#16241c" font-weight="600">你只说想要什么，剩下的它来判断。</text>
+    <text x="0" y="244" font-size="20" fill="#6B7A73">网课学时再多，也补不上面授缺口——它会替你把账分开算。</text>
+  </g>
+  <g id="chat-proof" transform="translate(700 46)">
+    <rect x="0" y="0" width="444" height="262" rx="20" fill="#0F2419"/>
+    <text x="24" y="38" font-size="18" fill="#DCEFE2" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">学时助手 · 已连接</text>
+    <text x="420" y="38" text-anchor="end" font-size="18" fill="#7BA893" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">已连接</text>
+    <line x1="0" y1="54" x2="444" y2="54" stroke="#1E3A2C"/>
+    <rect x="40" y="74" width="396" height="52" rx="16" fill="#1F6F4A"/>
+    <text x="60" y="106" font-size="20" fill="#FFFFFF" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">帮我看看到底还差多少学时</text>
+    <rect x="8" y="140" width="396" height="96" rx="16" fill="#FFFFFF"/>
+    <text x="28" y="174" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">网络自学  128 / 50 · 已达标</text>
+    <text x="28" y="196" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">集中培训   64 / 90 · 还差 26</text>
+    <text x="28" y="218" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">网课补不了面授那 26 学时。</text>
+  </g>
+  <g id="ledger-motif" transform="translate(56 326)">
+    <text x="0" y="18" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">网络自学</text>
+    <text x="520" y="18" text-anchor="end" font-size="20" fill="#6B7A73" font-family="Menlo,Consolas,ui-monospace,monospace">128 / 50 学时</text>
+    <rect x="0" y="30" width="370" height="10" rx="5" fill="#E3EBE5"/>
+    <rect x="0" y="30" width="370" height="10" rx="5" fill="#B8860B"/>
+    <text x="0" y="64" font-size="18" fill="#6B7A73" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">超额 156%</text>
+    <text x="600" y="18" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">集中培训</text>
+    <text x="1120" y="18" text-anchor="end" font-size="20" fill="#6B7A73" font-family="Menlo,Consolas,ui-monospace,monospace">64 / 90 学时</text>
+    <rect x="600" y="30" width="370" height="10" rx="5" fill="#E3EBE5"/>
+    <rect x="600" y="30" width="263" height="10" rx="5" fill="#1F6F4A"/>
+    <text x="600" y="64" font-size="18" fill="#6B7A73" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">完成率 71%</text>
+  </g>
+</svg>

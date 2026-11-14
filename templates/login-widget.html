@@ -1,0 +1,26 @@
+<!--
+登录卡片（用于 show_widget 的 widget_code）。
+
+占位符：
+  {{QR_BLOCK}}  二维码图块；没有码时传空串
+  {{TITLE}}     标题，如「登录烟草网络学院」
+  {{HINT}}      下一步说明
+  {{ACCOUNT}}   已知账号（手机号），可空
+  {{TTL}}       有效期秒数
+
+约束与 qr-widget.html 相同：不要加 <script>（宿主沙箱渲染会卡住），
+二维码必须是 data:image/png;base64,... 内联。
+-->
+<div style="padding:1.1rem 1.25rem; background: var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); max-width:560px; font-size:14px;">
+  <p style="margin:0 0 10px; font-size:15px; font-weight:500;">{{TITLE}}</p>
+  {{QR_BLOCK}}
+  <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
+    <p style="margin:0; font-size:13px; color: var(--color-text-secondary); line-height:1.7;">{{HINT}}</p>
+    <p style="margin:0; font-size:13px; color: var(--color-text-secondary); line-height:1.7;">
+      账号：<strong>{{ACCOUNT}}</strong>
+    </p>
+    <p style="margin:0; font-size:12px; color: var(--color-text-tertiary); line-height:1.6;">
+      二维码约 {{TTL}} 秒内有效 · 过期自动换新码 · 扫码优先（账密登录在手机端可能被顶下线）
+    </p>
+  </div>
+</div>

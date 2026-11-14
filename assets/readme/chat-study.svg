@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460"
+     role="img" aria-labelledby="t d" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">
+  <title id="t">把《内部控制及风险管理》学完</title>
+  <desc id="d">与 AI 助手的真实对话截图：体检确认、逐节上报、完成复核。</desc>
+  <rect width="1200" height="460" fill="#F4F8F5"/>
+  <rect x="170" y="24" width="860" height="412" rx="20" fill="#0F2419"/>
+  <text x="194" y="62" font-size="18" fill="#DCEFE2" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">把《内部控制及风险管理》学完</text>
+  <text x="1006" y="62" text-anchor="end" font-size="18" fill="#7BA893" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">已连接</text>
+  <line x1="170" y1="78" x2="1030" y2="78" stroke="#1E3A2C"/>
+  <rect x="210" y="98" width="812" height="52" rx="16" fill="#1F6F4A"/>
+  <text x="230" y="130" font-size="20" fill="#FFFFFF" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">把《内部控制及风险管理》帮我学完</text>
+  <rect x="178" y="164" width="812" height="52" rx="16" fill="#FFFFFF"/>
+  <text x="198" y="196" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">体检：共 2 节，合计约 77 分钟。确认后我开始。</text>
+  <rect x="210" y="230" width="812" height="52" rx="16" fill="#1F6F4A"/>
+  <text x="230" y="262" font-size="20" fill="#FFFFFF" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">嗯，开始吧</text>
+  <rect x="178" y="296" width="812" height="118" rx="16" fill="#FFFFFF"/>
+  <text x="198" y="330" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">学完了，2/2 节：</text>
+  <text x="198" y="356" font-size="20" fill="#16241c" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">（一）OK 1 轮 / 445s　（二）OK 7 轮 / 4200s</text>
+  <text x="198" y="396" font-size="20" fill="#6B7A73" font-family="PingFang SC,Microsoft YaHei,system-ui,sans-serif">平台更新完成状态要几分钟，不用重跑。</text>
+</svg>

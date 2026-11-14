@@ -1,0 +1,18 @@
+{
+  "source": "mooc.ctt.cn 个人学习中心",
+  "collected_at": "",
+  "tasks": [
+    {
+      "title": "（课程/考试/直播名称，照抄页面原文）",
+      "kind": "课程",
+      "required": true,
+      "deadline": "2026-11-08",
+      "hours": 4,
+      "progress": "0%",
+      "class_name": "（所属培训班名称，没有就留空）",
+      "platform_status": "未开始",
+      "url": "",
+      "notes": ""
+    }
+  ]
+}

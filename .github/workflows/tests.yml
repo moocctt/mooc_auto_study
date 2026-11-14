@@ -1,0 +1,42 @@
+name: tests
+
+on:
+  push:
+    branches: [main, skill]
+  pull_request:
+    branches: [main, skill]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt "pytest>=7,<9"    # 固定大版本：上游破坏性升级不该让 CI 变红
+      - name: 语法检查（全部脚本）
+        run: python -m compileall -q scripts
+      - name: 单元测试
+        run: python -m pytest tests -q
+      - name: 冒烟：所有脚本 --help 都能正常退出
+        shell: bash
+        run: |
+          set -e
+          cd scripts
+          for f in *.py; do
+            [ "$f" = "__init__.py" ] && continue
+            python "$f" --help > /dev/null
+          done
