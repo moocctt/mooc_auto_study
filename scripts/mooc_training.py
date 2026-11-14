@@ -200,7 +200,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="我的班级（线下集中培训）采集")
     p.add_argument("--json", action="store_true")
     p.add_argument("--refresh", action="store_true", help="忽略缓存，重新逐班拉详情")
-    p.add_argument("--year", type=int, default=datetime.now().year)
+    p.add_argument("--year", type=int, default=T.cn_today().year)   # 平台口径的年度归属
     a = p.parse_args(argv)
     token, _ = T.load_session()
     s = T.api_session(token)

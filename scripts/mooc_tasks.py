@@ -35,9 +35,9 @@ import requests
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from tobacco import (CRED_FILE, DATA_DIR, TASKS_FILE, _protect,  # noqa: E402
-                     _restrict_permissions, _unprotect, cn_today, load_json,
-                     now_iso, save_json)
+from tobacco import (CN_TZ, CRED_FILE, DATA_DIR, PROFILE_FILE, TASKS_FILE,  # noqa: E402
+                     _protect, _restrict_permissions, _unprotect, cn_today,
+                     load_json, now_iso, save_json)
 
 
 class AuthExpired(Exception):
@@ -75,6 +75,9 @@ URL_TEMPLATES = {
 def save_session(token: str, expires_in: int = 14400, source: str = "unknown") -> dict:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     enc, blob = _protect(token)
+    if enc == "plain":                    # 无 DPAPI/keyring：违背「加密会话」承诺，必须让用户看见
+        print(f"[会话] ⚠️ 本机没有可用的加密后端（DPAPI/keyring），"
+              f"会话将以明文 base64 保存到 {SESSION_FILE}", file=sys.stderr)
     obj = {"enc": enc,
            "token_source": source,    # app-login=APP 端 / qr-wechat,qr-app=网页端（按端单会话）
            "token_b64": base64.b64encode(blob).decode("ascii"),
@@ -137,16 +140,27 @@ def _safe_out(raw: str) -> Path:
         p = p.absolute()
     if p.is_dir():
         raise SystemExit(f"{p} 是目录，--out/--keep-file 需要文件路径。")
-    guarded = {"session.dat": SESSION_FILE, "credentials.json": CRED_FILE,
-               "tasks.json": TASKS_FILE}
-    for name, real in guarded.items():
+    # 凭据真名是 credentials.dat（tobacco.CRED_FILE）；数据目录整体不外借，
+    # 任何文件写进去都可能撞上会话/凭据/任务库/账本
+    try:
+        data_dir = DATA_DIR.resolve()
+    except OSError:
+        data_dir = DATA_DIR.absolute()
+    if p == data_dir or p.is_relative_to(data_dir):
+        raise SystemExit(f"拒绝写入 {p}：{DATA_DIR} 是 skill 自己的数据目录，"
+                         "换个位置（比如 %TEMP%\\import.json）。")
+    for real in (SESSION_FILE, CRED_FILE, TASKS_FILE, PROFILE_FILE):
         try:
             target = Path(real).resolve()
         except OSError:
             target = Path(real).absolute()
-        if p.name == name or p == target:
-            raise SystemExit(f"拒绝写入 {p}：{name} 是 skill 自己的数据文件名，"
+        if p == target:
+            raise SystemExit(f"拒绝写入 {p}：这是 skill 自己的数据文件，"
                              "换个文件名（比如 %TEMP%\\import.json）。")
+    if p.name in {"session.dat", "credentials.dat", "credentials.json",
+                  "tasks.json", "profile.json", "today_used.json"}:
+        raise SystemExit(f"拒绝写入 {p}：这是 skill 自己的数据文件名，"
+                         "换个文件名（比如 %TEMP%\\import.json）。")
     return p
 
 
@@ -676,7 +690,7 @@ def _ms_to_date(ms) -> str | None:
     if not ms:
         return None
     try:
-        return datetime.fromtimestamp(int(ms) / 1000).date().isoformat()
+        return datetime.fromtimestamp(int(ms) / 1000, tz=CN_TZ).date().isoformat()
     except (ValueError, OSError, OverflowError):
         return None
 

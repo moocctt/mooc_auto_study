@@ -670,7 +670,7 @@ def cmd_task(args: argparse.Namespace) -> int:
         return 0
 
     if args.action == "stats":
-        today = date.today()
+        today = cn_today()                  # 平台口径的今天，非 UTC+8 机器上不偏一天
         pending = [t for t in tasks if t["status"] != "done"]
         overdue = [t for t in pending if t.get("deadline") and parse_date(t["deadline"]) < today]
         due7 = [t for t in pending if t.get("deadline")
@@ -1407,7 +1407,7 @@ def render_ics(tasks: list[dict], today: date | None = None,
 
 def cmd_report(args: argparse.Namespace) -> int:
     db = load_db()
-    today = date.today()
+    today = cn_today()                      # 平台口径的今天，非 UTC+8 机器上不偏一天
     rows = []
     for t in db["tasks"]:
         dl = parse_date(t.get("deadline"))
