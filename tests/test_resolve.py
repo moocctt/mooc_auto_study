@@ -13,9 +13,9 @@ def two_users(tmp_path, monkeypatch):
         "MOOC_LOGIN=138A\nMOOC_PASS=pa\n"
         "MOOC_LOGIN=138B\nMOOC_PASS=pb\n", encoding="utf-8")
     monkeypatch.setattr(m, "ENV_FILE", str(env_file))
-    # display_name 模拟: 138A 已登录过, 平台叫 陈学新
+    # display_name 模拟: 138A 已登录过, 平台叫 张三
     tok = tmp_path / "tok.json"
-    tok.write_text(json.dumps({"access_token": "x", "display_name": "陈学新"}),
+    tok.write_text(json.dumps({"access_token": "x", "display_name": "张三"}),
                    encoding="utf-8")
     monkeypatch.setattr(m, "token_file",
                         lambda user=None: str(tok) if user == "138A"
@@ -36,11 +36,11 @@ def test_exact_username(two_users):
 
 
 def test_display_name_match(two_users):
-    assert st.resolve_user("陈学新") == "138A"
+    assert st.resolve_user("张三") == "138A"
 
 
 def test_prefix_unique(two_users):
-    assert st.resolve_user("陈") == "138A"       # 唯一前缀命中真实姓名
+    assert st.resolve_user("张") == "138A"       # 唯一前缀命中真实姓名
 
 
 def test_prefix_ambiguous(two_users):
