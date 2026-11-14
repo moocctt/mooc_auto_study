@@ -115,6 +115,16 @@ token 不用填，账号密码也不用填。脚本只借用**你已经在网页
 
 </details>
 
+## 真机测试（2026-11-14）
+
+- 测试方式：本机 Chrome（scoop 安装）复用登录态——只拷贝 `Local State`、`Preferences`、`Local Storage`、`Session Storage` 到独立 `user-data-dir`，用 `--remote-debugging-port` 打开课程页；驱动脚本 `tests/live-run4.cjs` 仅保留在本地（`tests/` 不入库），截图在 `docs/shots/live-*.png`。
+- 真机发现并修复的缺陷：
+  1. **面板挂载崩溃**：注入时机早于 DOM 建树时 `documentElement`/`body` 尚不存在，`mount()` 直接抛 `TypeError`，面板永远出不来 → 挂载前判空，并在 `DOMContentLoaded` 后重试。
+  2. **课程路由盲区**：课程详情页 hash 形如 `#/study/course/detail/<uuid>`（纯 UUID，不带 `&bid`）时解析不出课程 id，点“执行学习任务”会退化成“刷整批个人任务” → 路由解析补充 UUID 形态。
+- 真机流程验证：登录态复用 → 令牌自动捕获 → 进入课程详情页 → 面板识别“当前为课程/专题页 → 快速刷本课程/专题” → 列出小节并开始第 1 节（mp4）→ 上报请求发出且被接受（HTTP 200，`lessonLocation` 落库）。
+- 已知现象：该账号“网络自学”学时已远超年度要求，`remainingTime` 不再下降，脚本按设计触发配额熔断并停止（见截图日志：`[配额] 剩余时长未下降 (3259→3259)`）。
+- 脱敏：右上角头像像素化；手机号按模式掩码（前 3 后 2）；令牌后缀掩码。截图与文档不含账号名、手机号明文。
+
 ## 边界与风险
 
 - 两个脚本**功能互斥**，同一时间只开一个；同时启用会直接拒启动。

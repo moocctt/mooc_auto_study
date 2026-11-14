@@ -844,7 +844,9 @@
         </div>
         <div id="${prefix}-log" style="height:180px;overflow-y:auto;padding:4px 10px;border-top:1px solid #eaeef2;white-space:pre-wrap"></div>
       </div>`;
-      document.documentElement.appendChild(box);
+      const root = document.documentElement || document.body;
+      if (!root) return;
+      root.appendChild(box);
       const pos = gm2.getValue("pos");
       if (pos && pos.v === 2) {
         box.style.left = Math.min(Math.max(0, pos.left), Math.max(0, window.innerWidth - box.offsetWidth)) + "px";
@@ -968,7 +970,7 @@
   function currentBidFromHash(hash) {
     try {
       const h = decodeURIComponent(hash || "");
-      const m = h.match(/course\/detail\/\d+&([^&/]+)/) || h.match(/subject\/detail\/([^&/?#]+)/);
+      const m = h.match(/course\/detail\/\d+&([^&/]+)/) || h.match(/subject\/detail\/([^&/?#]+)/) || h.match(/course\/detail\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
       return m ? m[1] : "";
     } catch {
       return "";
@@ -1159,7 +1161,9 @@
   }, 12e3);
   (function boot() {
     hunter.tokenFromStorage();
-    if (!isAuthPage(location.hash)) panel.mount();
+    const mountPanel = () => { if (!isAuthPage(location.hash)) panel.mount(); };
+    if (document.documentElement) mountPanel();
+    else document.addEventListener("DOMContentLoaded", mountPanel, { once: true });
     window.addEventListener("hashchange", () => {
       if (!isAuthPage(location.hash)) {
         if (!panel.getBox()) panel.mount();

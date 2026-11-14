@@ -128,6 +128,11 @@
 
 </details>
 
+## 真机测试（2026-11-14）
+
+- 与 fast 版共用同一套引擎，fast 版真机测试时确认的两处修复（面板挂载判空 + `#/study/course/detail/<uuid>` 路由）已同步到本脚本；挂载判空对 unattended 尤其重要——注入时机早于 DOM 建树时旧逻辑会直接抛 `TypeError`。
+- 测试方式与脱敏口径与 fast 版一致（见 `tobacco-mooc-fast.additional-info.md` 的「真机测试」章节）：本机 Chrome 复用登录态，驱动脚本仅保留在本地，截图在 `docs/shots/live-*.png`，头像像素化、手机号按模式掩码、令牌后缀掩码。
+
 ## 边界与风险
 
 - 与「快速刷课学习助手」**互斥**，同一时间只开一个。
