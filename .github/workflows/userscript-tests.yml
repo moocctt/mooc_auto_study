@@ -25,4 +25,4 @@ jobs:
           node --check userscript/tobacco-mooc-fast.user.js
           node --check userscript/tobacco-mooc-unattended.user.js
       - name: 单元测试与引擎规则
-        run: node --test tests
+        run: node --test tests/*.test.js
