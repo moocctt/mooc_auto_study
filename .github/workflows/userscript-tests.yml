@@ -1,4 +1,4 @@
-name: userscript tests
+﻿name: userscript tests
 
 on:
   push:
@@ -20,9 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: 语法检查
+      - name: 璇硶妫€鏌?
         run: |
           node --check userscript/tobacco-mooc-fast.user.js
           node --check userscript/tobacco-mooc-unattended.user.js
-      - name: 单元测试与引擎规则
-        run: node --test tests/*.test.js
+      - name: 鍗曞厓娴嬭瘯涓庡紩鎿庤鍒?
+        run: node tests/runner.js
