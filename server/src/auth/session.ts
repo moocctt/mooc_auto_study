@@ -32,8 +32,9 @@ export async function createSession(req: Request, res: Response, userId: string)
   res.cookie(COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    // 按 X-Forwarded-Proto 判断（app 已 trust proxy）：纯 HTTP 部署下发 Secure cookie 浏览器会直接丢弃
-    secure: req.secure,
+    // 部署形态已强制 https（nginx 443 TLS 终结 + 80 跳转）：生产环境恒发 Secure，
+    // 防止会话 cookie 随明文 HTTP 外发；本地开发无证书仍靠 req.secure 判定
+    secure: req.secure || env.isProd,
     maxAge: env.sessionTtlDays * 86400_000,
     path: '/',
   });
@@ -44,7 +45,7 @@ export async function destroySession(req: Request, res: Response, next?: NextFun
     const token = req.cookies?.[COOKIE] as string | undefined;
     if (token) await prisma.session.deleteMany({ where: { id: sha256(token) } });
   } catch (e) { next?.(e); return; }
-  res.clearCookie(COOKIE, { path: '/', sameSite: 'lax', secure: req.secure });
+  res.clearCookie(COOKIE, { path: '/', sameSite: 'lax', secure: req.secure || env.isProd });
   next?.();
 }
 

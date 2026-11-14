@@ -41,9 +41,11 @@ services:
     depends_on:
       - app
     ports:
-      - "80:80"
+      - "80:80"    # 只用于 301 跳转到 https
+      - "443:443"  # TLS 终结：登录表单提交本站与平台账号密码，必须走加密通道
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro   # 生成方式见 docs/DEPLOY.md「证书」一节
 
 volumes:
   db-data:

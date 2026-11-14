@@ -7,15 +7,25 @@
 - 应用镜像：仓库根 Dockerfile（多阶段：client 构建 → server 构建 → 精简运行镜像，启动时 `prisma db push` 建表）
 - 密钥：
   - `POSTGRES_PASSWORD` 数据库口令（自定强口令）
-  - `PLATFORM_ENC_KEY` 32 字节 hex（`openssl rand -hex 32`），用于加密库里的平台密码；**一经设定不可更改**，否则旧密文解不开
-- 拓扑：nginx:80 → app:8080（Express，静态 + API）→ db:5432（PostgreSQL 16，卷 `db-data` 持久化）
+  - `PLATFORM_ENC_KEY` 32 字节 hex（`openssl rand -hex 32`），用于加密库里的平台密码；**一经设定不可更改**，否则旧密文解不开（生产环境缺失时应用会直接拒绝启动）
+- 证书：nginx 在 443 终结 TLS，需要 `nginx/certs/tls.crt` 与 `tls.key`（挂载进容器）。内网/自用场景自签即可：
+
+```bash
+mkdir -p nginx/certs
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+  -keyout nginx/certs/tls.key -out nginx/certs/tls.crt \
+  -subj "/CN=<主机地址>"
+```
+
+  自签证书浏览器会告警，属预期（受信证书请用内网 CA 签发）。**登录表单提交本站与平台账号密码，必须走 https**；80 端口已配置为强制跳转 443。
+- 拓扑：nginx:80(跳转)+443(TLS 终结) → app:8080（Express，静态 + API）→ db:5432（PostgreSQL 16，卷 `db-data` 持久化）
 
 ## 方式一：docker compose
 
 ```bash
 cp .env.example .env   # 填 POSTGRES_PASSWORD 与 PLATFORM_ENC_KEY
 docker compose up -d --build
-# 访问 http://<主机>/
+# 访问 https://<主机>/（自签证书首次访问需信任）
 ```
 
 ## 方式二：WSL 容器（wslc 3.0+，无 Docker Desktop）
@@ -45,10 +55,11 @@ wslc run -d --name app --restart always --network webnet --network-alias app `
   --health-interval 10s --health-retries 12 --health-start-period 30s `
   tobacco-mooc-web:latest
 
-# 5. 反代（挂完整主配置 nginx/nginx.conf；发布到宿主 80 端口）
+# 5. 反代（挂完整主配置 nginx/nginx.conf；发布到宿主 80/443 端口）
 wslc run -d --name nginx --restart always --network webnet `
-  -p 80:80 `
+  -p 80:80 -p 443:443 `
   -v "<仓库绝对路径>\nginx\nginx.conf:/etc/nginx/nginx.conf:ro" `
+  -v "<仓库绝对路径>\nginx\certs:/etc/nginx/certs:ro" `
   nginx:alpine
 ```
 
@@ -64,8 +75,8 @@ wslc run -d --name nginx --restart always --network webnet `
 ## 验证
 
 ```bash
-curl -s http://localhost/api/auth/me            # {"message":"未登录","code":"AUTH"} 401 → 反代通
-# 浏览器注册账号 → 绑定平台账号 → 总览出双轨学时即为全链路就绪
+curl -sk https://localhost/api/auth/me          # {"message":"未登录","code":"AUTH"} 401 → 反代通
+# 浏览器访问 https://<主机>/（自签证书首次需信任）→ 注册账号 → 绑定平台账号 → 总览出双轨学时即为全链路就绪
 ```
 
 ## 运维

@@ -10,6 +10,9 @@ export interface IcsEvent {
 const pad = (n: number) => String(n).padStart(2, '0');
 const basicDate = (d: Date) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const basicTime = (d: Date) => `${basicDate(d)}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+// DTSTAMP 按协议必须声明为 UTC：basicTime 是本地浮动时间，硬加 Z 会差一个时区，
+// 日历客户端会把整份文件的元时间戳读错
+const utcStamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 // RFC5545 每行 ≤75 字节，超长折叠
@@ -34,19 +37,21 @@ export function buildIcs(events: IcsEvent[]): string {
     'PRODID:-//mooc-auto-study//web//CN', 'CALSCALE:GREGORIAN',
   ];
   for (const ev of events) {
-    lines.push('BEGIN:VEVENT', `UID:${ev.uid}`, `DTSTAMP:${basicTime(now)}Z`);
+    // RFC5545 ABNF：VEVENT 先父属性后子组件，VALARM 必须在 SUMMARY 之后，严格解析器会丢弃乱序组件
+    lines.push('BEGIN:VEVENT', `UID:${ev.uid}`, `DTSTAMP:${utcStamp(now)}`);
     if (ev.end) {
       lines.push(`DTSTART;VALUE=DATE-TIME:${basicTime(ev.start)}`, `DTEND;VALUE=DATE-TIME:${basicTime(ev.end)}`);
     } else {
       lines.push(`DTSTART;VALUE=DATE:${basicDate(ev.start)}`);
-      if (ev.alarmDays) {
-        lines.push(
-          'BEGIN:VALARM', `TRIGGER:-P${ev.alarmDays}D`,
-          'ACTION:DISPLAY', `DESCRIPTION:${esc(ev.summary)}`, 'END:VALARM',
-        );
-      }
     }
-    lines.push(`SUMMARY:${esc(ev.summary)}`, 'END:VEVENT');
+    lines.push(`SUMMARY:${esc(ev.summary)}`);
+    if (!ev.end && ev.alarmDays) {
+      lines.push(
+        'BEGIN:VALARM', `TRIGGER:-P${ev.alarmDays}D`,
+        'ACTION:DISPLAY', `DESCRIPTION:${esc(ev.summary)}`, 'END:VALARM',
+      );
+    }
+    lines.push('END:VEVENT');
   }
   lines.push('END:VCALENDAR');
   return lines.map(fold).join('\r\n') + '\r\n';

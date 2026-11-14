@@ -27,31 +27,44 @@ function getRun(userId: string): RunState {
 export async function startRun(userId: string, courseId: string, trigger: 'manual' | 'schedule' = 'manual'): Promise<{ ok: boolean; message?: string }> {
   const r = getRun(userId);
   if (r.running) return { ok: false, message: '已在运行中，请先停止' };
+  const log = (msg: string) => {
+    r.logs.push(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${msg}`);
+    if (r.logs.length > LOG_LIMIT) r.logs.splice(0, r.logs.length - LOG_LIMIT);
+  };
   r.logs = [];
+  // run 行先落库：失败运行也要可回溯（此前在 platformToken 成功后才建行，失败根本不入库）
+  let runId: string | null = null;
+  try {
+    runId = (await prisma.engineRun.create({ data: { userId, trigger, reason: 'running' } })).id;
+  } catch { /* 建行失败不阻断运行：日志页仍可见进度 */ }
+  // 同步验证凭据：未绑定/解密失败直接返回失败，而不是假成功让用户干等
+  try {
+    await platformToken(userId, log);
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    log(`✗ ${errMsg}`);
+    if (runId) {
+      await prisma.engineRun.update({ where: { id: runId }, data: { endedAt: new Date(), reason: 'error' } }).catch(() => {});
+    }
+    return { ok: false, message: errMsg };
+  }
   r.running = true;
   r.startedAt = Date.now();
-  // 后台跑，不 await；完成后自然置位
+  // 后台跑，不 await；完成后自然置位。platformToken 已缓存，不会再登录
   void (async () => {
-    const log = (msg: string) => {
-      r.logs.push(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${msg}`);
-      if (r.logs.length > LOG_LIMIT) r.logs.splice(0, r.logs.length - LOG_LIMIT);
-    };
     let quotaHit = false;
     let errMsg: string | undefined;
-    let runId: string | null = null;
     try {
       // 引擎闭包捕获启动时的 token 快照；401 即整体终止，重跑一次即可（代理类接口有自己的重登）
       const token = await platformToken(userId, log);
       const engine = createEngine({ token, log });
       r.engine = engine;
-      const row = await prisma.engineRun.create({ data: { userId, trigger } });
-      runId = row.id;
       const res = await engine.runAll(courseId);
       quotaHit = res.quotaHit;
       errMsg = res.error;
     } catch (e) {
       errMsg = e instanceof PlatformError ? e.message : (e instanceof Error ? e.message : String(e));
-      r.logs.push(`[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ✗ ${errMsg}`);
+      log(`✗ ${errMsg}`);
     } finally {
       const s = r.engine?.getState();
       if (runId) {

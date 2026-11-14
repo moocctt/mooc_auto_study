@@ -97,17 +97,29 @@ export async function platformCreds(userId: string): Promise<{ username: string;
 
 /** 每用户平台令牌缓存：401 时用库内凭据重登一次 */
 const tokens = new Map<string, string>();
+// in-flight 去重：平台 PC 端单会话（enableUnique=1），并发 platformLogin 互相当成「另一端登录」顶号，
+// 先到的 token 立即失效，触发登录风暴。按 userId 合并并发请求，成功失败都清锁
+const tokenInflight = new Map<string, Promise<string>>();
 export function invalidateToken(userId: string): void { tokens.delete(userId); }
 
 export async function platformToken(userId: string, log: (m: string) => void = () => {}): Promise<string> {
   const cached = tokens.get(userId);
   if (cached) return cached;
-  const creds = await platformCreds(userId);
-  if (!creds) throw new PlatformError('尚未绑定平台账号', true);
-  const token = await platformLogin(creds.username, creds.password, creds.company);
-  tokens.set(userId, token);
-  log(`平台登录成功：${creds.username}`);
-  return token;
+  let p = tokenInflight.get(userId);
+  if (!p) {
+    p = (async () => {
+      const creds = await platformCreds(userId);
+      if (!creds) throw new PlatformError('尚未绑定平台账号', true);
+      const token = await platformLogin(creds.username, creds.password, creds.company);
+      tokens.set(userId, token);
+      log(`平台登录成功：${creds.username}`);
+      return token;
+    })();
+    tokenInflight.set(userId, p);
+    // 无论成败都解锁：失败后下一次调用要能真正重试，而不是永远拿到同一个 rejected promise
+    void p.finally(() => { if (tokenInflight.get(userId) === p) tokenInflight.delete(userId); }).catch(() => {});
+  }
+  return p;
 }
 
 /** 带自动重登的平台调用 */
