@@ -576,6 +576,8 @@ def study_section(s, sec: dict, *, chunk: int, dry_run: bool,
                 prev_rem, prev_step = None, 0   # 旧日志被拒，本轮无进展，别计入"卡住"
                 time.sleep(1)
                 continue
+            stats["submitted"] = stats.get("submitted", 0) + accepted
+            stats["sent"] = stats.get("sent", 0) + sent
             return False, f"上报失败 HTTP {code} {body}"
         prev_step = step
         if course_id:
@@ -950,6 +952,7 @@ def run_targets(s, targets: list[tuple[str, str | None]], *, chunk: int, dry_run
                                      title=name, report=rep)
         except QuotaExhausted:
             stat["failed"] += 1
+            stat["quota"] = True               # 熔断要上报成退出码 3，不能降级成普通失败
             say("[目标] ⛔ 当日配额已满，停止剩余目标")
             break
         except RuntimeError as exc:              # 读取/接口失败
@@ -1016,7 +1019,7 @@ def _main(argv=None) -> int:
         for r in rows[:40]:
             import datetime as _dt
             la = r.get("lastAccessTime")
-            ts = _dt.datetime.fromtimestamp(la / 1000).strftime("%m-%d %H:%M") if la else "  —  "
+            ts = _dt.datetime.fromtimestamp(la / 1000, tz=CN_TZ).strftime("%m-%d %H:%M") if la else "  —  "
             name = (r.get("courseInfo") or {}).get("name") or r.get("courseId") or ""
             fs = r.get("finishStatus")
             state = ("已学完" if fs in DONE_FINISH
@@ -1057,6 +1060,8 @@ def _main(argv=None) -> int:
             plat0 = platform_today_hours(s)
             if plat0 is None:
                 say("[学时] 平台未提供当日学时（studyTotalTime 恒为 0），额度按本地账本估算")
+        except AuthExpired:                  # 401 不是「读取失败」，要穿透到退出码 2
+            raise
         except Exception as exc:
             # 拿不到平台当日已记：基准会偏高（额度偏松），必须让用户看见
             say(f"[学时] 平台当日学时读取失败（{exc}），额度按本地记录估算")
@@ -1133,6 +1138,7 @@ def _main(argv=None) -> int:
                                          budget=max(1.0, budget - local_sec))
             except QuotaExhausted:
                 stat["failed"] += 1
+                stat["quota"] = True           # 熔断要上报成退出码 3，不能降级成普通失败
                 say("[学时] ⛔ 当日配额已满，停止")
                 break
             except RuntimeError as exc:
@@ -1145,7 +1151,11 @@ def _main(argv=None) -> int:
             stat["total"] += total
             if rep.get("fail"):
                 stat["failed"] += 1
-            local_sec += float(rep.get("submitted") or 0)
+            if rep.get("partial"):
+                stat["partial"] = True         # 停在半节：进 --json 供助手判断「别当失败重跑」
+            local_sec += float(rep.get("sent") or rep.get("submitted") or 0)
+            # 闸门口径与课内一致看 sent（提交出去的秒数）：上报失败时 submitted 会漏计，
+            # 导致闸门偏松、继续开下一门课超额提交
             if a.dry_run:
                 say("[dry-run] 只体检首个目标：体检不累计已提交秒数，继续枚举会把全部候选课都打开一遍")
                 break
@@ -1173,7 +1183,7 @@ def _main(argv=None) -> int:
                     break
                 if wait_finish(s, cid, int(left)):
                     stat["confirmed"] += 1
-        if not a.dry_run and gained is not None:
+        if not a.dry_run and gained is not None and not stat.get("quota"):
             if local_sec / 3600.0 < deficit and gained < deficit:
                 # 目标没达成不等于“出错”：已经提交的秒数在等平台结算。
                 # 单独用一个状态位，避免与“配额熔断”叠加把失败数算成 2。
@@ -1203,11 +1213,16 @@ def _main(argv=None) -> int:
         say("（⏳ 目标未达成，但本次已提交的学时可能仍在结算，先别重跑）")
     _result(mode, courses=stat["courses"], done=stat["done"], total=stat["total"],
             failed=stat["failed"], hours_gained=gained,
-            **({"error": "target_unmet"} if unmet else {}))
+            **({"error": "quota_exhausted"} if stat.get("quota")
+               else {"error": "target_unmet"} if unmet else {}))
     if a.json:
         print(json.dumps({"mode": mode, "courses": stat["courses"], "done": stat["done"],
                           "total": stat["total"], "failed": stat["failed"],
-                          "hours_gained": gained, "unmet": unmet}, ensure_ascii=False))
+                          "hours_gained": gained, "unmet": unmet,
+                          "partial": bool(stat.get("partial")),
+                          "quota": bool(stat.get("quota"))}, ensure_ascii=False))
+    if stat.get("quota"):
+        return 3                             # SKILL.md 承诺的退出码：助手据此次日再跑，而不是当失败重跑
     return 0 if not (stat["failed"] or unmet) else 1
 
 
