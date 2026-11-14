@@ -36,14 +36,16 @@
       tokenFromStorage();
       if (token) return Promise.resolve();
       return new Promise((resolve, reject) => {
+        let entry = null;
         const t = setTimeout(() => {
-          tokenWaiters = [];
+          tokenWaiters = tokenWaiters.filter((w) => w !== entry);
           reject(new Error("\u672A\u6355\u83B7\u5230\u4EE4\u724C: \u9875\u9762\u672A\u53D1\u51FA\u5E26\u6388\u6743\u5934\u7684\u8BF7\u6C42, \u4E14 localStorage \u65E0\u4EE4\u724C"));
         }, ms);
-        tokenWaiters.push(() => {
+        entry = () => {
           clearTimeout(t);
           resolve();
-        });
+        };
+        tokenWaiters.push(entry);
       });
     }
     function tokenFromStorage() {
@@ -234,8 +236,26 @@
   // src/api.js
   var AUTH_CODES = /* @__PURE__ */ new Set([90901, 90902]);
   function createApi({ hunter: hunter2, gm: gm2, fetchImpl, log = () => {
-  }, origin = ORIGIN }) {
+  }, origin = ORIGIN, timeoutMs = 2e4 }) {
     const doFetch = fetchImpl || ((...a) => fetch(...a));
+    // 全链路无超时会让整批永远卡在一个请求上，这里统一加硬超时
+    async function doFetchWithTimeout(url, init, ms = timeoutMs) {
+      const ctl = typeof AbortController === "function" ? new AbortController() : null;
+      let timer = null;
+      const guard = new Promise((_r, reject) => {
+        timer = setTimeout(() => {
+          if (ctl) ctl.abort();
+          const e = new Error(`请求超时（${Math.round(ms / 1e3)}s）: ${url}`);
+          e.timeout = true;
+          reject(e);
+        }, ms);
+      });
+      try {
+        return await Promise.race([doFetch(url, ctl ? Object.assign({}, init, { signal: ctl.signal }) : init), guard]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
     async function relogin() {
       const acc = gm2.getValue("account");
       if (!acc || !acc.username || !acc.password) return null;
@@ -252,7 +272,7 @@
         system: encField(fp.system),
         captcha: ""
       });
-      const res = await doFetch(origin + API.LOGIN, {
+      const res = await doFetchWithTimeout(origin + API.LOGIN, {
         method: "POST",
         body,
         credentials: "include",
@@ -277,7 +297,7 @@
     async function req(method, path, { params, data } = {}, retried = false) {
       await hunter2.waitToken();
       const url = origin + path + (params ? `?${qs(params)}` : "");
-      const res = await doFetch(url, {
+      const res = await doFetchWithTimeout(url, {
         method: method.toUpperCase(),
         body: data ? form(data) : void 0,
         credentials: "include",
@@ -306,6 +326,11 @@
         err.auth = true;
         throw err;
       }
+      if (authError) {
+        const err = new Error(`登录态失效 (HTTP ${res.status}) —— 已重试仍失败, 请刷新页面重新登录`);
+        err.auth = true;
+        throw err;
+      }
       return [res.status, body];
     }
     return { req, relogin };
@@ -314,23 +339,55 @@
   // src/engine.js
   var QuotaExhausted = class extends Error {
   };
+  function buildStartParams(backdateS, clientType, nowMs = Date.now()) {
+    return { clientType, createTime: nowMs - Math.trunc(backdateS * 1e3) };
+  }
+  function parseRemaining(v) {
+    if (v === null || v === void 0 || v === "") return { kind: "missing", value: null };
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return { kind: "invalid", value: v };
+    return { kind: "number", value: n };
+  }
+  function normalizeReport(code, body) {
+    const raw = body && body.errorCode;
+    const ec = raw === null || raw === void 0 ? 0 : Number(raw);
+    if (ec === 40909) return { status: "conflict", errorCode: ec };
+    if (code !== 200) return { status: "fail", errorCode: ec, reason: `\u4E0A\u62A5\u5931\u8D25 HTTP ${code}` };
+    if (!Number.isFinite(ec)) return { status: "fail", errorCode: raw, reason: `\u4E0A\u62A5\u5931\u8D25 errorCode ${raw}` };
+    if (ec !== 0) return { status: "fail", errorCode: ec, reason: `\u4E0A\u62A5\u5931\u8D25 errorCode ${ec}` };
+    return { status: "ok", errorCode: 0 };
+  }
+  function computeMaxRounds(total, step0, slack) {
+    const t = Number(total), per = Math.min(Number(step0) || 0, API.MAX_STEP);
+    const n = Math.ceil(t / per) + (Number(slack) || 0);
+    return Number.isFinite(n) && n > 0 ? n : 5000;
+  }
+  function taskFilter(all) {
+    return (all || []).filter((t) => [1, 2].includes(t.status) && [1, 2].includes(t.businessType) && !DONE.has(t.finishStatus) && !t.expired);
+  }
+  function sectionSkipped(type) {
+    return SKIP.has(type);
+  }
   function createEngine({ api: api2, state: state2, config: config2, log = () => {
   }, ui = () => {
   }, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), lock: lock2 = null, currentBid: currentBid2 = () => "", playSection = null }) {
     async function undoneTasks() {
       const all = [];
       const seen = /* @__PURE__ */ new Set();
-      for (let page = 1; page <= 10; page++) {
+      for (let page = 1; page <= 50; page++) {
         const [code, body] = await api2.req("GET", API.TASKS, { params: { page, pageSize: 500, status: "", filterAuthExam: 1 } });
         if (code !== 200 || !body) throw new Error(`\u4EFB\u52A1\u5217\u8868\u8BF7\u6C42\u5931\u8D25 (HTTP ${code})`);
         const items = body.items || [];
+        const before = all.length;
         for (const t of items) if (!seen.has(t.id)) {
           seen.add(t.id);
           all.push(t);
         }
-        if (!items.length || items.length < 500 || all.length >= (body.total || 0)) break;
+        if (!items.length) break;
+        if (page > 1 && all.length === before) break;
+        if (body.total && all.length >= Number(body.total)) break;
       }
-      return all.filter((t) => [1, 2].includes(t.status) && [1, 2].includes(t.businessType) && !DONE.has(t.finishStatus) && !t.expired);
+      return taskFilter(all);
     }
     async function sections(courseId, versionId, register) {
       const [code, body] = await api2.req("GET", API.CHAPTERS, { params: { courseId, versionId, isRegister: register } });
@@ -375,10 +432,9 @@
       return [Object.assign(det || {}, { _library: true }), secs, true];
     }
     async function startProgress(sectionId, backdateS, clientType) {
-      const ct = Date.now() - Math.trunc(backdateS * 1e3);
-      const [code, body] = await api2.req("GET", `${API.START}/${sectionId}`, { params: { clientType, createTime: ct } });
-      if (code !== 200 || !body || !body.id) return [null, null];
-      return [body.id, body.remainingTime ?? null];
+      const [code, body] = await api2.req("GET", `${API.START}/${sectionId}`, { params: buildStartParams(backdateS, clientType) });
+      if (code !== 200 || !body || !body.id) return { ok: false, logId: null, rem: null, reason: `start-progress \u5931\u8D25 (HTTP ${code})` };
+      return { ok: true, logId: body.id, rem: parseRemaining(body.remainingTime) };
     }
     async function progressUpdate(courseId) {
       await api2.req("POST", API.PROGRESS_UPD, { data: { encrypt: "false", courseId } });
@@ -387,9 +443,9 @@
       await api2.req("POST", API.SECTION_PROGRESS, { data: { courseId: parentId, resourceIds: childId } });
       for (let i = 0; i < tries; i++) {
         if (state2.stopFlag) return false;
-        const [logId] = await startProgress(sectionId, 300, 1);
-        if (logId) {
-          const [, body] = await api2.req("POST", API.DOC, { data: { encrypt: "false", logId, lessonLocation: 999 } });
+        const sp = await startProgress(sectionId, 300, 1);
+        if (sp.ok) {
+          const [, body] = await api2.req("POST", API.DOC, { data: { encrypt: "false", logId: sp.logId, lessonLocation: 999 } });
           if (body && DONE.has(body.finishStatus)) return true;
         }
         await sleep(rand(2500, 4e3));
@@ -421,15 +477,20 @@
         return [settled, settled ? "\u5B50\u8BFE\u7A0B\u5B8C\u6210, \u7236\u8BB0\u5F55\u5DF2\u7ED3\u7B97" : "\u5B50\u8BFE\u7A0B\u5B8C\u6210, \u7236\u8BB0\u5F55\u7ED3\u7B97\u672A\u786E\u8BA4(\u7A0D\u540E\u590D\u6838)"];
       }
       const step0 = config2.getStep();
-      let total = null, submitted = 0, prevRem = null, stuck = 0, maxRounds = 0;
+      let total = null, submitted = 0, prevRem = null, stuck = 0, maxRounds = 0, conflicts = 0;
       for (let i = 0; ; i++) {
         if (state2.stopFlag) return [false, "\u5DF2\u505C\u6B62"];
         if (maxRounds && i >= maxRounds) return [false, `\u8F6E\u6B21\u7528\u5B8C (\u5DF2\u63D0\u4EA4 ${submitted}s)`];
         state2.round = i + 1;
-        const [logId, remRaw] = await startProgress(sec.id, config2.backdateS(step0), library ? 0 : 1);
-        if (logId === null) return [false, "start-progress \u5931\u8D25"];
-        if (remRaw === null) return [true, submitted ? `\u5B8C\u6210\uFF08\u5171 ${submitted}s\uFF09` : "\u5DF2\u5B8C\u6210\uFF08\u65E0\u5269\u4F59\u65F6\u957F\uFF09"];
-        const rem = remRaw;
+        const sp = await startProgress(sec.id, config2.backdateS(step0), library ? 0 : 1);
+        if (!sp.ok) return [false, sp.reason];
+        const logId = sp.logId;
+        if (sp.rem.kind === "missing") {
+          const progress = submitted || Number(sec.studied) || 0;
+          return progress ? [true, `\u5B8C\u6210\uFF08\u5DF2\u4E0A\u62A5 ${progress}s\uFF0C\u65E0\u5269\u4F59\u65F6\u957F\uFF09`] : [false, "start-progress \u65E0 remainingTime \u5B57\u6BB5"];
+        }
+        if (sp.rem.kind === "invalid") return [false, `remainingTime \u5F02\u5E38: ${String(sp.rem.value)}`];
+        const rem = sp.rem.value;
         if (rem <= 0) {
           if (submitted || sec.studied) return [true, `\u65F6\u957F\u5DF2\u7528\u5B8C\uFF08\u5171 ${submitted}s\uFF09`];
           return [true, "\u8BE5\u5C0F\u8282\u65E0\u5269\u4F59\u65F6\u957F"];
@@ -440,19 +501,22 @@
         } else stuck = 0;
         prevRem = rem;
         if (total === null) {
-          total = rem + sec.studied;
-          maxRounds = Math.ceil(total / Math.min(step0, API.MAX_STEP)) + config2.roundsSlack;
+          total = rem + (Number(sec.studied) || 0);
+          maxRounds = computeMaxRounds(total, step0, config2.roundsSlack);
         }
         const step = Math.min(step0, rem, API.MAX_STEP);
         const isMedia = MEDIA.has(sec.type);
         const [code, body] = isMedia ? await api2.req("POST", API.VIDEO, { data: { encrypt: "false", logId, studyTime: Math.trunc(step), lessonLocation: Math.trunc(Math.min(total, total - rem + step)), resourceTotalTime: Math.trunc(total), flush: "false" } }) : await api2.req("POST", API.DOC, { data: { encrypt: "false", logId, lessonLocation: 999 } });
-        if (code !== 200) {
-          if (body && body.errorCode === 40909) {
-            await sleep(1e3);
-            continue;
-          }
-          return [false, `\u4E0A\u62A5\u5931\u8D25 HTTP ${code}`];
+        const rep = normalizeReport(code, body);
+        if (rep.status === "conflict") {
+          conflicts += 1;
+          if (conflicts > 20) return [false, "\u5E76\u53D1\u51B2\u7A81(40909)\u91CD\u8BD5\u8FC7\u591A, \u5DF2\u653E\u5F03\u8BE5\u5C0F\u8282"];
+          i -= 1;
+          await sleep(Math.min(1e3 * conflicts, 5e3));
+          continue;
         }
+        if (rep.status !== "ok") return [false, rep.reason];
+        conflicts = 0;
         submitted += step;
         state2.submitted = submitted;
         if (courseId) await progressUpdate(courseId);
@@ -474,7 +538,7 @@
     }
     async function runCourseInner(courseId, depth = 0) {
       if (config2.canStart && !config2.canStart()) {
-        log(`\u26D4 \u68C0\u6D4B\u5230\u5176\u4ED6\u6807\u7B7E\u9875\u6B63\u5728\u5B66\u4E60, \u8DF3\u8FC7\u300C${courseId.slice(0, 8)}\u2026\u300D(\u9632\u591A\u5F00)`);
+        log(`\u26D4 \u68C0\u6D4B\u5230\u5176\u4ED6\u6807\u7B7E\u9875\u6B63\u5728\u5B66\u4E60, \u8DF3\u8FC7\u300C${String(courseId).slice(0, 8)}\u2026\u300D(\u9632\u591A\u5F00)`);
         return [0, 1];
       }
       const [det, secs, library] = await openCourse(courseId);
@@ -516,7 +580,7 @@
       const owner = lock2 ? lock2.lockOwner() : "";
       if (owner || state2.running) {
         log(`\u2717 ${owner || "\u5F53\u524D\u4EFB\u52A1"}\u6B63\u5728\u8FD0\u884C, \u8BF7\u5148\u505C\u6B62\u5B83`);
-        return;
+        return { quotaHit: false, ok: false, authFailed: false };
       }
       if (lock2) lock2.acquire();
       state2.running = true;
@@ -575,9 +639,10 @@
           if (mode === "course") log(failCount ? `\u26A0 \u672C\u8BFE\u7A0B/\u4E13\u9898\u5904\u7406\u5B8C\u6BD5 (\u5931\u8D25 ${failCount} \u5904)` : "\u2705 \u672C\u8BFE\u7A0B/\u4E13\u9898\u5904\u7406\u5B8C\u6BD5");
           else log(failCount ? `\u26A0 \u5168\u90E8\u4EFB\u52A1\u5904\u7406\u5B8C\u6BD5 (\u5931\u8D25 ${failCount} \u95E8)` : "\u2705 \u5168\u90E8\u4EFB\u52A1\u5904\u7406\u5B8C\u6BD5");
         }
-        return { quotaHit };
+        return { quotaHit, ok: !quotaHit && !state2.stopFlag && failCount === 0, authFailed: false };
       } catch (e) {
         log(`\u2717 ${e.message}`);
+        return { quotaHit, ok: false, authFailed: !!(e && e.auth) };
       } finally {
         state2.running = false;
         state2.course = "";
@@ -634,7 +699,8 @@
         const cur = read();
         if (cur && cur.owner !== owner && now() - cur.ts < ttlMs) return false;
         write({ owner, ts: now() });
-        return true;
+        const back = read();
+        return !!(back && back.owner === owner);
       },
       held(owner) {
         const cur = read();
@@ -749,7 +815,7 @@
       box.title = c ? "\u70B9\u51FB\u6807\u9898\u680F\u5C55\u5F00" : "\u70B9\u51FB\u6807\u9898\u680F\u6298\u53E0";
     }
     function mount() {
-      if (box) return;
+      if (box && (!document.contains || document.contains(box))) return;
       const theme = headerColor(fallbackColor);
       const fg = theme.light ? "#fff" : "#1f2328";
       const buddy = document.querySelector(".um-head, .uf-head");
@@ -825,7 +891,11 @@
       setInterval(tick, 2e3);
       window.addEventListener("hashchange", tick);
     }
-    return { log, ui, mount, setCollapsed, getBox: () => box };
+    function destroy() {
+      if (box && box.remove) box.remove();
+      box = null;
+    }
+    return { log, ui, mount, setCollapsed, destroy, getBox: () => box };
   }
 
   // src/routes.js
@@ -867,7 +937,8 @@
   var state = { running: false, stopFlag: false, course: "", section: "", round: 0, submitted: 0, collapsed: false, pinned: false, stacked: false };
   var hunter = createTokenHunter({});
   var api = createApi({ hunter, gm, log: (m) => panel.log(m) });
-  var chunk = () => Math.max(30, Number(gm.getValue("chunk")) || 600);
+  var normalizeChunk = (raw) => Math.min(86400, Math.max(30, Number(raw) || 600)); // cap 24h: bigger values backdate createTime to 1970
+  var chunk = () => normalizeChunk(gm.getValue("chunk"));
   var config = {
     getStep: () => chunk(),
     backdateS: (step) => step + Math.trunc(rand(60, 300)),
@@ -877,8 +948,9 @@
     coursePageLabel: "\u5FEB\u901F\u5237\u672C\u8BFE\u7A0B/\u4E13\u9898"
   };
   var lock = createLock("fast");
+  var INSTANCE = "fast#" + Math.random().toString(36).slice(2, 8);
   var guard = createSessionGuard(gm);
-  config.canStart = () => guard.hold("fast");
+  config.canStart = () => guard.hold(INSTANCE);
   var currentBid = () => currentBidFromHash(location.hash);
   var engine;
   var panel = createPanel({
@@ -896,23 +968,25 @@
       if (state.running) {
         state.stopFlag = true;
         panel.log("\u6B63\u5728\u505C\u6B62(\u7B49\u5F53\u524D\u8F6E\u7ED3\u675F)\u2026");
-      } else if (guard.held("fast")) {
+      } else if (guard.held(INSTANCE)) {
         panel.log("\u26D4 \u53E6\u4E00\u4E2A\u6807\u7B7E\u9875\u7684\u5B66\u4E60\u811A\u672C\u6B63\u5728\u8FD0\u884C, \u4E0D\u542F\u52A8(\u9632\u591A\u5F00)");
       } else {
         panel.setCollapsed(false);
-        guard.hold("fast");
+        guard.hold(INSTANCE);
         engine.runAll().then((r) => {
-          if (!state.stopFlag && !(r && r.quotaHit)) {
+          if (r && r.ok && !state.stopFlag) {
             panel.log("\u21BB 2 \u79D2\u540E\u5237\u65B0\u9875\u9762\u4EE5\u66F4\u65B0\u8FDB\u5EA6\u2026");
             setTimeout(() => location.reload(), 2e3);
+          } else if (r && r.authFailed) {
+            panel.log("\u2717 \u767B\u5F55\u6001\u5931\u6548, \u5DF2\u505C\u6B62(\u4E0D\u81EA\u52A8\u5237\u65B0)");
           }
-        }).finally(() => guard.release("fast"));
+        }).catch((e) => panel.log(`\u2717 ${e && e.message || e}`)).finally(() => guard.release(INSTANCE));
       }
     }
   });
   engine = createEngine({ api, state, config, log: panel.log, ui: panel.ui, lock, currentBid });
   setInterval(() => {
-    if (state.running) guard.hold("fast");
+    if (state.running) guard.hold(INSTANCE);
   }, 15e3);
   hunter.installHooks({});
   (function boot() {
@@ -922,11 +996,48 @@
       if (!isAuthPage(location.hash)) {
         if (!panel.getBox()) panel.mount();
       } else if (panel.getBox()) {
-        panel.getBox().remove();
+        panel.destroy();
       }
     });
     window.__MOOC_US_DEBUG__ = Object.assign(window.__MOOC_US_DEBUG__ || {}, {
-      fast: { state, runCourse: (id) => engine.runCourse(id), runAll: () => engine.runAll(), currentBidFromHash: () => currentBid(), log: panel.log }
+      fast: {
+        state,
+        runCourse: (id) => engine.runCourse(id),
+        runAll: () => engine.runAll(),
+        currentBidFromHash: () => currentBid(),
+        log: panel.log,
+        core: {
+          KEY,
+          encField,
+          expandKey,
+          encryptBlock,
+          hash32,
+          fingerprintFor,
+          pystr,
+          toParams,
+          qs,
+          form,
+          createTokenHunter,
+          createApi,
+          createEngine,
+          createLock,
+          createSessionGuard,
+          QuotaExhausted,
+          buildStartParams,
+          parseRemaining,
+          normalizeReport,
+          computeMaxRounds,
+          normalizeChunk,
+          currentBidFromHash: (hash) => currentBidFromHash(hash),
+          isAuthPage,
+          taskFilter,
+          sectionSkipped,
+          getStep: () => config.getStep(),
+          roundsSlack: config.roundsSlack,
+          engine,
+          constants: { API, MEDIA, NESTED, SKIP, DONE, TYPE_NAME }
+        }
+      }
     });
   })();
   GM_registerMenuCommand("\u663E\u793A/\u9690\u85CF\u9762\u677F", () => {
@@ -939,10 +1050,10 @@
   });
   GM_registerMenuCommand("\u8BBE\u7F6E\u5355\u6863\u79D2\u6570(\u226530)", () => {
     const v = Number(prompt("\u6BCF\u4E2A\u5C0F\u8282\u6BCF\u6B21\u4E0A\u62A5\u7684\u79D2\u6570(\u226530, \u9ED8\u8BA4600):", String(gm.getValue("chunk") || 600)));
-    if (Number.isFinite(v) && v >= 30) {
+    if (Number.isFinite(v) && v >= 30 && v <= 86400) {
       gm.setValue("chunk", Math.trunc(v));
       panel.log(`\u5355\u6863\u79D2\u6570 \u2192 ${Math.trunc(v)}`);
-    } else if (v) panel.log("\u79D2\u6570\u65E0\u6548(\u987B\u226530)");
+    } else if (v) panel.log("\u79D2\u6570\u65E0\u6548(\u987B 30\u201586400)");
   });
   GM_registerMenuCommand("\u8BBE\u7F6E\u5355\u4F4D\u540D\u79F0", () => {
     const v = prompt("\u5355\u4F4D\u540D\u79F0(\u9ED8\u8BA4\u5168\u884C\u4E1A):", gm.getValue("companyName") || "\u5168\u884C\u4E1A");

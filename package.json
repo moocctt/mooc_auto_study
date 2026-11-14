@@ -1,0 +1,11 @@
+{
+  "name": "tobacco-mooc-userscripts",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/",
+    "check": "node --check userscript/tobacco-mooc-unattended.user.js && node --check userscript/tobacco-mooc-fast.user.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
