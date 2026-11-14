@@ -1,6 +1,6 @@
 # 接口考古笔记（web 版新功能的数据源）
 
-来源：extension 分支 `extension/lib/{platform,library,deadline,history}.js`（05504da）反查 + 真机实测（账号 15980250706，2026-11-13，全部 HTTP 200）。所有请求需 `Authorization: Bearer__<token>` + 浏览器 UA。
+来源：extension 分支 `extension/lib/{platform,library,deadline,history}.js`（05504da）反查 + 真机实测（账号 13900001234，2026-11-13，全部 HTTP 200）。所有请求需 `Authorization: Bearer__<token>` + 浏览器 UA。
 
 ## 1. 学时账单双轨
 
