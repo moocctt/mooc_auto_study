@@ -39,7 +39,10 @@
         let entry = null;
         const t = setTimeout(() => {
           tokenWaiters = tokenWaiters.filter((w) => w !== entry);
-          reject(new Error("\u672A\u6355\u83B7\u5230\u4EE4\u724C: \u9875\u9762\u672A\u53D1\u51FA\u5E26\u6388\u6743\u5934\u7684\u8BF7\u6C42, \u4E14 localStorage \u65E0\u4EE4\u724C"));
+          const e = new Error("\u672A\u6355\u83B7\u5230\u4EE4\u724C: \u9875\u9762\u672A\u53D1\u51FA\u5E26\u6388\u6743\u5934\u7684\u8BF7\u6C42, \u4E14 localStorage \u65E0\u4EE4\u724C");
+          // 这就是「登录态失效」的一种：打上 auth 标记，runAll 才会报 authFailed，入口才不会误走自动刷新分支
+          e.auth = true;
+          reject(e);
         }, ms);
         entry = () => {
           clearTimeout(t);
@@ -482,6 +485,8 @@
         if (state2.stopFlag) return [false, "\u5DF2\u505C\u6B62"];
         if (maxRounds && i >= maxRounds) return [false, `\u8F6E\u6B21\u7528\u5B8C (\u5DF2\u63D0\u4EA4 ${submitted}s)`];
         state2.round = i + 1;
+        // 记录本轮起点：本轮网络耗时要从等待里扣掉，否则节奏不是 1:1（越慢的网络睡得越久）
+        const roundStart = Date.now();
         const sp = await startProgress(sec.id, config2.backdateS(step0), library ? 0 : 1);
         if (!sp.ok) return [false, sp.reason];
         const logId = sp.logId;
@@ -521,7 +526,7 @@
         state2.submitted = submitted;
         if (courseId) await progressUpdate(courseId);
         ui();
-        await sleep(config2.roundSleepMs(step));
+        await sleep(Math.max(0, config2.roundSleepMs(step) - (Date.now() - roundStart)));
       }
     }
     async function runCourse(courseId, depth = 0) {

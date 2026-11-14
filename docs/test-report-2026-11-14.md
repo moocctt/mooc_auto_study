@@ -13,15 +13,15 @@
 | 项目 | 结果 |
 |---|---|
 | 只读代码审查 | 2 份（fast / unattended），P0 4 条、P1 26 条、P2 20 余条 |
-| 已修 | 4 条 P0 + 2 条 P2（见 §2、§3） |
-| 新增测试 | 5 个文件、33 个用例、零第三方依赖（`node:test`） |
-| 验证 | `node --check` 两个文件均通过；`node --test tests` 33 passed |
-| 未修 | P1 20 条、P2 约 18 条，见 §6（都没有静默丢弃） |
+| 已修 | 4 条 P0 + 10 条 P1 + 2 条 P2（见 §2、§3） |
+| 新增测试 | 7 个文件、36 个用例、零第三方依赖（`node:test`） |
+| 验证 | 语法检查 ×2 通过；单测 36 passed；本地 mock 联调 3 用例；真实站点冒烟 5 步全绿（无头 Edge + CDP） |
+| 未修 | P1 16 条、P2 约 18 条，见 §6（都没有静默丢弃） |
 | 文档不一致 | 26 处（含两份文档互相矛盾），见 §7，**未改文档**（本次范围外） |
 
-本次没有对真实站点发起任何请求：真刷需要浏览器环境 + 账号，且平台按端单会话
-（`enableUnique=1`），拿真账号试会顶掉正常会话、还会命中风控。所有结论都来自代码审查与
-可复现的单测。
+对真实站点只做了**未登录态**的只读验证（无头浏览器打开首页、注入脚本、触发一次
+`runAll`）：不登录、不刷课、不碰学习接口的写路径，不会顶掉正常会话（平台按端单会话
+`enableUnique=1`），也不产生学时。
 
 ## 1. 测试方法
 
@@ -31,6 +31,13 @@
 3. **引擎行为单测**：`tests/engine-rules.test.js` —— 用假 `api` 注入响应，跑真正的
    `engine.doSection()`，断言上报次数、学时累加、失败分类。
 4. **会话锁单测**：`tests/session-guard.test.js` —— 多标签页防多开的核心语义。
+5. **本地 mock 联调**：`tests/mock-server.js`（`node:http` 起的本地模拟站点，实现
+   register/chapter-progress/start-progress/video-progress/doc-progress/progress-update
+   等接口）+ `tests/mock-integration.test.js` —— 打**真实 HTTP** 跑通 engine 主链路，
+   断言服务端实收秒数与本地账本一致、报告节奏符合 1:1。
+6. **真实站点冒烟**：`tests/browser-smoke.mjs` —— 无头 Edge + CDP（`node` 原生
+   `WebSocket`，无第三方依赖）打开 https://mooc.ctt.cn/ 未登录态，验证登录墙、面板注入、
+   token 猎取钩子、401 自愈路径的可观测性（见 §5 步骤 4）。
 
 `tests/harness.js` 用 `node:vm` 在假 DOM / `GM_*` / `XMLHttpRequest` / `fetch` 里加载
 打包后的脚本，因此不用改脚本结构也能测到内部逻辑（前提是脚本把它挂到了
@@ -123,16 +130,29 @@ sectionSkipped/currentBidFromHash/isAuthPage/constants`（**只增不减**，原
 6. **全链路没有超时**（P1）：`createApi` 里所有请求改走 `doFetchWithTimeout`（`AbortController` + `Promise.race`，默认 20s，可传 `timeoutMs`），登录请求同样；超时抛 `e.timeout = true`。
 7. **二次 401 被降级成「上报失败」**（P1）：`retried` 之后仍是 401 时原来落回 `return [res.status, body]`，于是拿死 token 把整批跑完。现在抛 `err.auth = true`，`runAll` 返回 `authFailed` 并停止刷新。
 8. **`waitToken` 超时会清空所有等待者**（P1）：超时分支原来是 `tokenWaiters = []`，别人的等待者被一起删掉（令牌来了也叫不醒，只能各自超时）。改成只 `filter` 掉自己，并把 `createTokenHunter` 加进 `core` 导出以便测试。
+9. **「真实节奏」只睡眠、不测量实际流逝**（P1，两脚本 `doSection`）：原来每轮固定
+   `await sleep(roundSleepMs(step))`，轮内还有 start/report/section-progress 三次串行
+   请求的网络耗时，实测 4 轮（每轮 500ms 档）总耗时 ≈2.7s 而非 2.0s。现在先记
+   `roundStart`，轮末 `await sleep(Math.max(0, roundSleepMs(step) - (Date.now() - roundStart)))`，
+   网络耗时从等待里扣掉。修后同场景 ≈2.0s（mock 联调用例钉住 <2.5s、≥1.8s）。
+10. **`waitToken` 超时的错误没有 `auth` 标记**（P1，真实站点冒烟发现）：未登录页跑
+    `runAll` → 请求 401 → `waitToken` 30s 超时 reject 的 Error 未打 `e.auth`，
+    `runAll` 返回 `authFailed:false`，入口的「✗ 登录态失效, 已停止(不自动刷新)」分支
+    永不触发。现在超时分支构造错误后 `e.auth = true` 再 reject（两脚本同位置），
+    真实冒烟实测 `runAll` 返回 `authFailed:true` 且面板留下日志
+    `✗ 未捕获到令牌: 页面未发出带授权头的请求, 且 localStorage 无令牌`。
 
-## 4. 新增测试清单（33 个用例）
+## 4. 新增测试清单（36 个用例）
 
 | 文件 | 覆盖 |
 |---|---|
-| `tests/harness.js` | `node:vm` 假 DOM/GM/XHR/fetch 加载器，两个脚本各能加载并取到 `__MOOC_US_DEBUG__` |
+| `tests/harness.js` | `node:vm` 假 DOM/GM/XHR/fetch 加载器，两个脚本各能加载并取到 `__MOOC_US_DEBUG__`；`realTimers` 选项供联调测节奏（默认排队不触发） |
 | `tests/core.test.js` | `core` 导出完整性、AES-128-ECB(PKCS7) 加密自检、`hash32`/`fingerprintFor`、`toParams/qs/form`、`parseRemaining` 三态、`normalizeReport` 分类、`buildStartParams` 回填、`computeMaxRounds` |
 | `tests/session-guard.test.js` | 不同实例第二个拿不到锁、同实例续租、过期后可接管、`release()` 只释放自己、unattended 用 `realtime#` 同规则 |
 | `tests/engine-rules.test.js` | HTTP 200+40909 不计学时且重试、其他 `errorCode` 记失败、HTTP 500 不误判配额、`remainingTime` 缺失/有进度、轮次上限、任务列表按 `total` 翻页到底、服务端忽略 `page` 时不空转 |
 | `tests/fast-rules.test.js` | 单档秒数默认/下限/上限、任务过滤、跳过规则 |
+| `tests/mock-integration.test.js` | 本地模拟站点真实 HTTP 联调：主链路服务端实收秒数=本地账本、doc 小节只报一次、报告节奏 1:1（修前 ≈2.7s → 修后 ≈2.0s） |
+| `tests/browser-smoke.mjs` | 真实站点冒烟脚本（无头 Edge + CDP，不进 CI；CI 无浏览器，文件名特意不是 `*.test.js`） |
 
 加密自检的期望值用 Node 内置 `crypto`（`aes-128-ecb`）独立算出后写死在测试里，
 实现与期望值互为交叉验证（不是「拿实现的结果当期望值」）。
@@ -143,12 +163,33 @@ sectionSkipped/currentBidFromHash/isAuthPage/constants`（**只增不减**，原
 cd <仓库>
 node --check userscript/tobacco-mooc-fast.user.js       # exit 0
 node --check userscript/tobacco-mooc-unattended.user.js # exit 0
-node --test tests                                       # 28 passed
+node tests/runner.js                                    # 36 passed
 ```
+
+真实站点冒烟（步骤 4，需要本机有 Edge/Chrome，无需账号）：
+
+```bash
+node tests/browser-smoke.mjs            # 自动找 msedge/chrome；ok:true 即 5 步全过
+```
+
+实测输出（2026-11-14，未登录态）：
+
+1. **登录墙**：首页 `#/home` 渲染出「登录」入口，`localStorage` 无 token。
+2. **面板注入**：注入 `GM_*` 垫片 + 脚本后，`window.__MOOC_US_DEBUG__.fast/core` 存在，
+   面板元素 `#uf-log` 已挂载（非登录/注册路由才挂，与 `AUTH_PAGE_RE` 一致）。
+3. **token 猎取钩子**：`window.fetch` 已被 `installHooks` 包裹（`fetch.toString()` 是
+   包裹函数体而非原生代码）。
+4. **401 自愈**：未登录直接 `runAll()` → 请求 401 → 换 token/重登均不可得 →
+   返回 `authFailed:true`，不再误走「自动刷新」分支（P0-2 修复 + §3.10 修复的效果）。
+5. **可观测性**：面板日志留下 `✗ 未捕获到令牌: 页面未发出带授权头的请求, 且 localStorage 无令牌`。
+
+另外做了纯 HTTP 探活：首页 200（openresty）；带伪 token 请求 `/api/v1/human/task` 返回
+HTTP 401（印证 api.js 只认 401 为登录失效）；`/oauth/api/v1/setting` 无参 422
+（脚本不经此路径，仅记录）。
 
 ## 6. 未修的清单（P1 / P2，按两个脚本合并去重）
 
-> 面板消失、任务列表分页、`courseId.slice`、全链路超时、二次 401 降级、`waitToken` 清空等待者 —— 这六条 P1 已修，见 §3。以下是仍然未修的部分。
+> 面板消失、任务列表分页、`courseId.slice`、全链路超时、二次 401 降级、`waitToken` 清空等待者、「真实节奏」不测流逝、`waitToken` 无 `auth` 标记 —— 这八条 P1 已修，见 §3。以下是仍然未修的部分。
 
 **P1（会造成错误结果或长时间空转）**
 
@@ -158,10 +199,9 @@ node --test tests                                       # 28 passed
 4. 章节只遍历一层，嵌套章节结构被丢掉。
 5. 任务过滤的魔法数字可能漏掉「未开始」的任务。
 6. 课程库分支：`registerStudy` 结果被丢弃，完成状态恒为 0 → 每次都重刷；`other(10)` 被当关联课程递归。
-7. 「真实节奏」只睡眠、不测量实际流逝，轮间还有 3 个串行请求 → 1:1 不成立。
-8. `reqWakeLock` 连调两次 + release 监听把新锁置空；12s 定时器对所有 `<video>` 强制 `play()`。
-9. 画质设置打错控件（`.vjs-subs-caps-button` 是字幕按钮）。
-10. POST 重试不幂等。
+7. `reqWakeLock` 连调两次 + release 监听把新锁置空；12s 定时器对所有 `<video>` 强制 `play()`。
+8. 画质设置打错控件（`.vjs-subs-caps-button` 是字幕按钮）。
+9. POST 重试不幂等。
 
 **P2（健壮性 / 安全 / 细节）**
 
@@ -170,7 +210,8 @@ node --test tests                                       # 28 passed
 账号密码明文存 GM；`__MOOC_US_DEBUG__` 在生产环境暴露可执行的批量入口；`settleNested`
 硬编码 300s 且空值未处理；库课程 `id` 与任务模式的 `id` 语义不一致；ICS/README 细节若干。
 
-完整逐条结论在两份审查报告里（本次未随仓库提交，需要的话我可以补进 `docs/`）。
+完整逐条结论在两份审查报告里；模块结构见 `docs/module-map.md`（行区间 + 接口清单 +
+数据流），也随仓库提交。
 
 ## 7. 文档不一致（未改，需你定口径）
 
@@ -192,7 +233,7 @@ node --test tests                                       # 28 passed
 
 ## 8. 残留风险
 
-- 单测覆盖的是「纯逻辑 + 引擎分支」，**播放器交互（`playSection`）与真实 DOM 流程没有被测到**：
-  需要浏览器才能覆盖，本次没做。
-- 两个脚本的真实行为只在代码层面推演过，没在真实账号上跑（会顶掉正常会话、有风控风险）。
+- 单测覆盖的是「纯逻辑 + 引擎分支 + mock 主链路」，**真实播放器交互（`playSection`）与
+  登录后的完整学习流程没有被端到端验证**：需要真实账号，会顶掉正常会话且有风控风险，
+  本次只做了未登录态冒烟。
 - 会话锁依赖 `GM_getValue` 的跨标签页一致性，Tampermonkey 默认支持，脚本管理器差异未验证。
