@@ -4,8 +4,7 @@
 
 这个仓库按交付形态分分支，互相不依赖，装哪个都行：`main` 油猴脚本、`web` 网页版、
 `extension` 浏览器扩展、`skill` AI 助手技能、`tui`（**本分支**）终端界面版 ——
-命令行 `mooc_auto_study.py` + 全屏 TUI `mooc_tui.py`。`tui` 与 `cli` 是同一套代码的两个
-分支名（`tui` 强调全屏界面、`cli` 是历史名），提交内容一致，跟进哪个都行。
+命令行 `mooc_auto_study.py` + 全屏 TUI `mooc_tui.py`。
 
 <p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="终端窗口演示：--list 看学时、--search 搜课程、--course 学完一门课">

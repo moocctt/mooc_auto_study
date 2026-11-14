@@ -2,7 +2,7 @@ name: tests
 
 on:
   push:
-    branches: [main, skill, tui, cli]
+    branches: [main, skill, tui]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   python-tests:
-    if: github.ref_name == 'main' || github.ref_name == 'tui' || github.ref_name == 'cli'
+    if: github.ref_name == 'main' || github.ref_name == 'tui'
     strategy:
       fail-fast: false
       matrix:
