@@ -16,3 +16,6 @@ mooc_token*.json
 .vscode/
 
 docs/shots/live-*.json
+tests
+# 测试与真机验证工具只保留在本地，不随仓库发布
+tests/

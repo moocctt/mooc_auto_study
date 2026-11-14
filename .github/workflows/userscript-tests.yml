@@ -1,4 +1,4 @@
-﻿name: userscript tests
+name: userscript tests
 
 on:
   push:
