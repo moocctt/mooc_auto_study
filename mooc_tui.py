@@ -39,8 +39,8 @@ from textual.widgets import Button, DataTable, Footer, Header, Input, RichLog, S
 
 import mooc_client
 from mooc_api_login import add_account as env_add_account
-from mooc_auto_study import (DONE_FINISH, FINISH_NAME, QuotaExhausted, StudyBot,
-                              _today_capacity, resolve_user, today_used)
+from mooc_auto_study import (DONE_FINISH, FINISH_NAME, BotStopped, QuotaExhausted,
+                              StudyBot, _today_capacity, resolve_user, today_used)
 
 TYPE_NAME = {1: "课程", 2: "专题", 3: "考试", 4: "调研", 5: "班级", 6: "直播"}
 
@@ -463,6 +463,12 @@ class SectionScreen(Screen):
 class ConfirmScreen(ModalScreen[bool]):
     """模态确认框 (skill: ModalScreen + push_screen_wait)。"""
 
+    # 以前只有鼠标点按钮能关掉这个框, 键盘 Esc/q 被 App 层吃掉, 键盘用户会被卡住
+    BINDINGS = [
+        Binding("escape", "cancel", "取消"),
+        Binding("q", "cancel", "取消", show=False),
+    ]
+
     CSS = """
     ConfirmScreen { align: center middle; background: $background 60%; }
     #dialog { width: 64; height: auto; padding: 1 2;
@@ -485,6 +491,9 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "yes")
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
 
 
 class StudyTUI(App):
@@ -542,6 +551,7 @@ class StudyTUI(App):
         self.user = user
         self.bot = None
         self.busy = False
+        self._hours_cache = {}          # 最近一次 hours_self 快照: _refill 只读缓存, 不发 HTTP
         self.input_mode = "hours"
         self.add_step = 0
         self.filter_key = ""
@@ -614,12 +624,10 @@ class StudyTUI(App):
             btn.label = self.TOOLBAR_SHORT.get(bid, label[:1]) if narrow else label
 
     def on_resize(self, event) -> None:
-        """终端尺寸变化 → 重算名称列宽并重绘 (数据已在内存, 无网络请求)。"""
+        """终端尺寸变化 → 只重算工具栏; 表格重绘交给刷新 (拖拽时事件密集, 避免闪屏)。"""
         if not isinstance(self, StudyTUI):
             return          # 子屏幕(如小节详情)冒泡触发时 self 不是主界面
         self._sync_toolbar()
-        if self._view_rows and not self.busy:
-            self._refill()
 
     def on_mount(self) -> None:
         table = self.query_one("#table", DataTable)
@@ -632,6 +640,8 @@ class StudyTUI(App):
         self.query_one("#log").border_title = "运行日志"
         self.log_write(f"[TUI] 模式 {self.mode} | dry-run {'开' if self.dry_run else '关'}")
         self._sync_toolbar()
+        # 捕获后台线程里的 print（登录提示等）: 否则会被 textual 重定向吞掉, 用户什么也看不到
+        self.begin_capture_print(self)
         self.action_refresh()
 
     # ------------------------------------------------------------ 工具
@@ -647,6 +657,12 @@ class StudyTUI(App):
                 screen.append_log(text)
         except Exception:
             pass
+
+    def on_print(self, event) -> None:
+        # begin_capture_print 的落点: 把底层库 print 的提示转进日志面板
+        for line in (event.text or "").splitlines():
+            if line.strip():
+                self.log_write(line)
 
     @staticmethod
     def _hours_text(info, dry_run, mode, counts=None, user=""):
@@ -687,7 +703,7 @@ class StudyTUI(App):
         self._shown_rows = shown
         from collections import Counter
         cnt = Counter(r["state"] for r in shown)
-        info = self.bot.hours_self() if self.bot else {}
+        info = self._hours_cache or {}   # 同步 HTTP 不能在 UI 线程跑, 只读缓存
         self.query_one("#hours", Static).update(
             self._hours_text(info, self.dry_run, self.mode, cnt, self._display_user()))
         shown.sort(key=SORT_MODES[self.sort_mode][1])
@@ -734,14 +750,27 @@ class StudyTUI(App):
         return tok.get("display_name") or self.user
 
     def set_hours(self) -> None:
-        try:
-            info = self.bot.hours_self() if self.bot else {}
-        except (Exception, SystemExit) as e:
-            info = {}
-            self.log_write(f"[学时] 读取失败 {e}")
-        if info:
+        if self.bot is None:
+            return
+
+        def runner():
+            # hours_self 是同步 HTTP, 在 UI 线程里调会冻住整个界面 → 挪到 worker
+            try:
+                info = self.bot.hours_self()
+            except (Exception, SystemExit) as e:
+                info = {}
+                self.call_from_thread(self.log_write, f"[学时] 读取失败 {e}")
+            self.call_from_thread(self._hours_set, info)
+
+        # 独立 group: 不能用 io 组, 会和刷新 worker 互斥打架
+        self.run_worker(runner, thread=True, name="hours", group="hours")
+
+    def _hours_set(self, info) -> None:
+        self._hours_cache = info or {}
+        if self._hours_cache:
             self.query_one("#hours", Static).update(
-                self._hours_text(info, self.dry_run, self.mode, user=self._display_user()))
+                self._hours_text(self._hours_cache, self.dry_run, self.mode,
+                                 user=self._display_user()))
 
     def _ensure_bot(self):
         if self.bot is None:
@@ -758,16 +787,24 @@ class StudyTUI(App):
         self.sub_title = f"运行中: {label}"
 
         def runner():
+            def safe_call(fn, *a):
+                # 退出/切号后 App 可能已经不在: call_from_thread 报错只会刷屏, 吞掉即可
+                try:
+                    self.call_from_thread(fn, *a)
+                except Exception:
+                    pass
             try:
                 bot = self._ensure_bot()
                 bot.dry_run = self.dry_run
                 fn(bot)
+            except BotStopped:
+                safe_call(self.log_write, "[TUI] 后台任务已停止")
             except QuotaExhausted as e:
-                self.call_from_thread(self._quota_stop, str(e))
+                safe_call(self._quota_stop, str(e))
             except (Exception, SystemExit) as e:
-                self.call_from_thread(self.log_write, f"[TUI] 异常 {type(e).__name__}: {e}")
+                safe_call(self.log_write, f"[TUI] 异常 {type(e).__name__}: {e}")
             finally:
-                self.call_from_thread(self._op_done, label)
+                safe_call(self._op_done, label)
 
         self.run_worker(runner, thread=True, name="op", group="ops",
                         exclusive=True)
@@ -784,6 +821,42 @@ class StudyTUI(App):
         self.log_write(f"[TUI] —— {label} 结束 ——")
         self.set_hours()
         self.action_refresh(quiet=True)
+
+    def _discard_bot(self) -> None:
+        """换号/退出时丢弃 bot: 先请求停止并 close, 否则学习/心跳线程还握着 Session。"""
+        bot, self.bot = self.bot, None
+        if bot is None:
+            return
+        stop = getattr(bot, "stop", None)
+        if stop:
+            try:
+                stop()
+            except Exception:
+                pass
+        try:
+            bot.close()
+        except Exception:
+            pass
+
+    def action_quit(self) -> None:
+        """退出: 先停后台任务与 bot 再收尾 (内置 quit 不等线程, 退出后还会继续上报)。"""
+        if self.busy:
+            self.log_write("[TUI] 正在停止后台任务…")
+            stop = getattr(self.bot, "stop", None) if self.bot else None
+            if stop:
+                try:
+                    stop()
+                except Exception:
+                    pass
+            try:
+                self.workers.cancel_group(self, "ops")
+            except Exception:
+                pass
+        self.exit()
+
+    def on_unmount(self) -> None:
+        # 应用退出兜底: 关闭 bot, 心跳线程与 HTTP Session 一并释放
+        self._discard_bot()
 
     # ------------------------------------------------------------ 动作
     def _typing(self) -> bool:
@@ -810,6 +883,7 @@ class StudyTUI(App):
                         exclusive=True)
 
     def _fill_table(self, info, rows):
+        self._hours_cache = info or {}   # 刷新结果缓存, 供 _refill/详情屏复用
         self._view_rows = rows
         self._refill()
 
@@ -899,17 +973,25 @@ class StudyTUI(App):
         if self.busy or self._typing():
             return
         try:
-            info = self.bot.hours_self() if self.bot else {}
-            got = float(info.get("hourSelf") or 0)
-            need = float(info.get("requireCourseHour") or 0)
+            got = need = 0.0
+            if self.bot is not None:
+                info = self.bot.hours_self()
+                got = float(info.get("hourSelf") or 0)
+                need = float(info.get("requireCourseHour") or 0)
             cap, prof = _today_capacity()
             used = today_used(got if got else None)
-            quota = min(max(0.0, cap - used), max(0.0, need - got))
+            if self.bot is None:
+                # 未登录读不到学时缺口口径, 只按档位容量给本日剩余额度
+                quota = max(0.0, cap - used)
+            else:
+                quota = min(max(0.0, cap - used), max(0.0, need - got))
         except (Exception, SystemExit) as e:
             self.log_write(f"[今日] 计算失败 {type(e).__name__}: {e}")
             return
         self.log_write(f"[今日] 档位「{prof.get('label') or '默认'}」容量 {cap:.2f}"
                        f" | 今日已学 {used:.2f} | 网络自学 {got:.2f}/{need:.2f}")
+        if self.bot is None:
+            self.log_write("[今日] 未登录, 只按容量估计额度; 登录后按学时缺口精确计算")
         if quota <= 0:
             self.log_write("[今日] ✅ 今天不用再学（容量已用满或学时已达标）")
             self.notify("今天不用再学", timeout=3)
@@ -968,7 +1050,7 @@ class StudyTUI(App):
                 return
             mooc_client.set_user(name)
             self.user = mooc_client.get_user()
-            self.bot = None          # 丢弃旧账号的客户端, 下次操作重建
+            self._discard_bot()      # 先停旧账号的心跳/任务, 再丢弃客户端
             self.notify(f"已切换账号: {self._display_user()}", timeout=3)
             self.log_write(f"[TUI] 已切换账号 -> {self.user}, 按 r 刷新")
             self.action_refresh()
@@ -1139,7 +1221,7 @@ class StudyTUI(App):
         self._qr_finish()
         mooc_client.set_user(key)
         self.user = mooc_client.get_user()
-        self.bot = None                      # 旧账号的客户端作废
+        self._discard_bot()                  # 旧账号的客户端作废, 先停再丢
         self.notify(f"扫码登录成功: {key}", timeout=4)
         label = "APP" if kind == "app" else "微信"
         self.log_write(f"[扫码] ✅ {label}扫码登录成功，账号 {key}，token 已缓存")
@@ -1156,8 +1238,8 @@ class StudyTUI(App):
         inp.focus()
 
     def action_dryrun(self) -> None:
-        if self._typing():
-            return
+        if self.busy or self._typing():
+            return   # 任务运行中改 dry_run 会和正在跑的操作打架, 直接拒绝
         self.dry_run = not self.dry_run
         if self.bot:
             self.bot.dry_run = self.dry_run

@@ -51,6 +51,7 @@
 
 import argparse
 import json
+import pathlib
 import random
 import re
 import sys
@@ -75,12 +76,18 @@ FINISH_NAME = {0: "未开始", 1: "学习中", 2: "已完成(复习)", 4: "已�
 # 任务接口 status: 1=未开始/未完成, 2=进行中, 3=已完成（平台 UI 上已完成的任务显示“复习”）
 # 实测 2026-11-04: 一个 5 小节全完成的专题从 status=1 变为 3, 而它截止 2026-12-31 未到期。
 # 过期跟完成无关 —— 由独立的 expired 布尔字段表示, 不是 status=3。
+def cn_today():
+    """平台账期按北京时间计; 本机不在东八区时 date.today() 会算错「今天」。"""
+    from datetime import datetime, timedelta, timezone
+    return datetime.now(timezone(timedelta(hours=8))).date()
+
 def _today_used_path():
     """本地当日用量账本。data/ 已在 .gitignore 里。"""
     import os
     from pathlib import Path
     home = os.environ.get("TOBACCO_HOME")
-    base = Path(home) if home else Path(__file__).resolve().parent.parent / "data"
+    # 不再往上跳一级: 旧写法把账本放到仓库外层, 多个 worktree 会互相覆盖
+    base = Path(home) if home else Path(__file__).resolve().parent / "data"
     return base / "today_used.json"
 
 def _today_ledger() -> dict:
@@ -93,9 +100,8 @@ def _today_ledger() -> dict:
 
 def today_used(hour_self: float | None = None) -> float:
     """今天已学（学时）。优先「平台结算口径」= last − base，兼容旧账本的 used。"""
-    import datetime
     obj = _today_ledger()
-    if obj.get("date") != datetime.date.today().isoformat():
+    if obj.get("date") != cn_today().isoformat():
         return 0.0
     if "base" in obj and "last" in obj:
         last = float(obj["last"] if hour_self is None else hour_self)
@@ -105,11 +111,9 @@ def today_used(hour_self: float | None = None) -> float:
 
 def record_today_hours(hour_self: float, session_base: float | None = None) -> None:
     """用平台 hourSelf 落账：当天首次以（学习前读数 或 现值）为基准，之后只更新现值。"""
-    import datetime
-    import json
     if hour_self is None or float(hour_self) <= 0:
         return
-    today = datetime.date.today().isoformat()
+    today = cn_today().isoformat()
     obj = _today_ledger()
     legacy = (float(obj.get("used") or 0)
               if obj.get("date") == today and "base" not in obj else 0.0)
@@ -129,7 +133,6 @@ def record_today_hours(hour_self: float, session_base: float | None = None) -> N
 
 def record_today_used(delta: float | None) -> None:
     """兼容旧调用：旧账本按增量累加；新账本由 hourSelf 口径覆盖，忽略。"""
-    import datetime
     import json
     if not delta or delta <= 0:
         return
@@ -140,7 +143,7 @@ def record_today_used(delta: float | None) -> None:
     used = round(today_used() + float(delta), 2)
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps({"date": datetime.date.today().isoformat(), "used": used},
+        p.write_text(json.dumps({"date": cn_today().isoformat(), "used": used},
                                 ensure_ascii=False), encoding="utf-8")
     except OSError as exc:                      # 记账失败不该影响学习
         say(f"[今日] 本地记账失败（不影响已学学时）：{exc}")
@@ -150,10 +153,14 @@ def _today_capacity() -> tuple[float, dict]:
     try:
         from tobacco import load_profile
         prof = load_profile()
-    except Exception:                       # 没配档位就按保守默认
-        prof = {"label": "默认", "weekday_hours": 2.0, "weekend_hours": 4.0}
-    import datetime
-    weekend = datetime.date.today().weekday() >= 5
+    except Exception:
+        # tobacco.py 缺失/损坏时逐级回退: 先用其内置默认档, 再退到保守固定值
+        try:
+            from tobacco import DEFAULT_PROFILE as _DP, WORK_PROFILES as _WP
+            prof = dict(_WP[_DP])
+        except Exception:
+            prof = {"label": "默认", "weekday_hours": 2.0, "weekend_hours": 4.0}
+    weekend = cn_today().weekday() >= 5
     cap = float(prof.get("weekend_hours" if weekend else "weekday_hours") or 0)
     return cap, prof
 
@@ -213,7 +220,7 @@ WS_URL = "wss://mooc.ctt.cn/api/v1/course-study/ws/course?token="
 def render_ics(tasks, today=None, alarm_days=3, mask_titles=True):
     """必修任务截止日 → iCalendar（只含未完成必修；课程名默认脱敏）。"""
     import datetime as dt
-    today = today or dt.date.today()
+    today = today or cn_today()   # 截止日按北京时间计, 与账期一致
     n = 0
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0",
              "PRODID:-//tobacco-mooc-study//mooc_auto_study//CN", "CALSCALE:GREGORIAN"]
@@ -309,6 +316,9 @@ class Heartbeat(threading.Thread):
 class QuotaExhausted(Exception):
     """当日学时配额已满 —— 上报不再生效, 应立即停止全部处理。"""
 
+class BotStopped(Exception):
+    """收到停止请求（TUI 退出/切换账号）—— 一路抛到最外层立即收尾, 不当作任务失败。"""
+
 
 class StudyBot:
     def __init__(self, verbose=True, dry_run=False, chunk=None, ws=True, mode="auto", say=None,
@@ -321,6 +331,7 @@ class StudyBot:
         self.nest_confirm = nest_confirm     # 父小节 settle 后隔多久回读确认稳定性
         self.last_result = {}
         self._auth_lock = threading.Lock()     # 仅保护 token 重登
+        self._stop = threading.Event()         # 全局停止标记: 退出/切号时置位, 学习循环见它即退
         self.dry_run = dry_run
         self.mode = mode                       # auto | audio | video
         # 音频模式对齐 App 的 submitProgressIntervals (300000ms)
@@ -523,16 +534,21 @@ class StudyBot:
                 _, body = self._commit_doc(log_id)
                 if isinstance(body, dict) and body.get("finishStatus") in DONE_FINISH:
                     break
-            time.sleep(random.uniform(2.5, 4.0))
+            self._sleep(random.uniform(2.5, 4.0))
 
         if confirm:
-            time.sleep(confirm)
+            self._sleep(confirm)
         got = self.section_progress(parent_course_id, child_course_id)
         return got in DONE_FINISH
 
     def fake_section(self, sec, chunk=None, depth=0, parent_course_id=None, course_id=None,
-                     library=False):
-        """把单个小节刷到完成态（finishStatus 2=复习 / 4=完成）。返回 (成功?, 说明)。"""
+                     library=False, stats=None, budget=None):
+        """把单个小节刷到完成态（finishStatus 2=复习 / 4=完成）。返回 (成功?, 说明)。
+
+        budget: 本次还允许提交的秒数（None=不限）。到点停在半节并把
+        stats["partial"] 置 True，让上层停在配额内而不是整门跑完才查。
+        """
+        stats = stats if stats is not None else {}
         chunk = chunk or self.chunk
         sid, stype = sec["section_id"], sec["type"]
         name = (sec["name"] or "")[:40]
@@ -547,7 +563,13 @@ class StudyBot:
             if depth >= MAX_DEPTH:
                 return False, "嵌套过深, 跳过"
             self.say(f"         ↳ 关联课程 {sec['resource_id']}")
-            done, total = self.run_course(sec["resource_id"], depth=depth + 1)
+            sub = {}
+            done, total = self.run_course(sec["resource_id"], depth=depth + 1,
+                                          report=sub, budget=budget)
+            stats["submitted"] = float(sub.get("submitted") or 0)
+            if sub.get("partial"):
+                stats["partial"] = True
+                return True, f"已达本次学时额度（子课程已提交 {stats['submitted']:.0f}s）"
             if self.dry_run:
                 return False, f"[dry-run] 子课程 {done}/{total}"
             if done < total:
@@ -583,6 +605,8 @@ class StudyBot:
         prev_rem = None
         stuck = 0
         for _ in range(60):
+            if self.stopped():
+                raise BotStopped()
             rounds += 1
             # 每次上报都需要一条新日志: 先取剩余时长, 同时回溯 createTime
             log_id, rem = self._start(sid, chunk + random.randint(60, 300), 0 if library else 1)
@@ -593,6 +617,7 @@ class StudyBot:
             if rem <= 0:
                 # 时长已耗尽：本轮已上报过 → 学完了，只是完成态还没落库（待平台汇总）
                 if submitted or sec.get("studied"):
+                    stats["submitted"] = submitted
                     return True, f"学习时长已用完（待平台汇总，共 {submitted}s）"
                 break
 
@@ -610,6 +635,16 @@ class StudyBot:
             if total is None:
                 total = rem + sec["studied"]
             step = min(chunk, rem)
+            if budget is not None:
+                left = budget - submitted
+                if left <= 1:
+                    # 本次额度到点: 半节收工并记 partial, 让上层停而不是继续多报
+                    stats["submitted"] = submitted
+                    stats["partial"] = True
+                    return True, (f"已达本次学时额度（本小节未完成, 已提交 {submitted}s"
+                                  f" / 需 {total:.0f}s）" if total else
+                                  f"已达本次学时额度（已提交 {submitted}s）")
+                step = max(1, min(step, int(left)))
             loc = min(total, total - rem + step)
 
             if stype in MEDIA_TYPES:
@@ -622,22 +657,27 @@ class StudyBot:
             if code != 200:
                 # 40909: 日志已用尽/失效 → 换一条再来
                 if isinstance(body, dict) and body.get("errorCode") == 40909:
-                    time.sleep(1)
+                    self._sleep(1)
                     continue
+                stats["submitted"] = submitted
                 return False, f"上报失败 HTTP {code} {body}"
 
             submitted += step
             if course_id:                       # 前端每次上报后都会重算该课进度
                 self.progress_update(course_id)
             if isinstance(body, dict) and body.get("finishStatus") in DONE_FINISH:
+                stats["submitted"] = submitted
                 return True, f"完成, 共 {rounds} 轮 / {submitted}s"
-            time.sleep(random.uniform(0.6, 1.6))
+            self._sleep(random.uniform(0.6, 1.6))
 
         # 复核
+        stats["submitted"] = submitted
         return False, f"轮次用完仍未见完成 (已提交 {submitted}s)"
 
     # ------------------------------------------------------------ 批量执行
-    def run_course(self, course_id, only_unfinished=True, depth=0, sync_only=False):
+    def run_course(self, course_id, only_unfinished=True, depth=0, sync_only=False,
+                   budget=None, report=None):
+        """budget=本次可提交秒数（None=不限）; report 收 ok/fail/submitted/partial。"""
         det, secs = self.open_course(course_id)
         library = bool(det.get("_library"))
         self.say(f"\n===== {det.get('name')} =====")
@@ -652,7 +692,12 @@ class StudyBot:
 
         ok = fail = 0
         touched = set()
+        used_sec = 0.0        # 本课已提交秒数（预算口径）
+        partial = False
         for i, sec in enumerate(todo, 1):
+            if budget is not None and used_sec >= budget:
+                partial = True                # 额度已用满, 本课不再继续
+                break
             tag = TYPE_NAME.get(sec["type"], sec["type"])
             self.say(f"[{i}/{len(todo)}] ({tag}) {sec['name'][:38]}")
             try:
@@ -660,9 +705,18 @@ class StudyBot:
                     good = self.settle_nested(course_id, sec["resource_id"], sec["section_id"])
                     msg = "父记录已判完成" if good else "平台仍未判定"
                 else:
+                    st = {}
                     good, msg = self.fake_section(sec, depth=depth,
                                                   parent_course_id=course_id,
-                                                  course_id=course_id, library=library)
+                                                  course_id=course_id, library=library,
+                                                  stats=st,
+                                                  budget=None if budget is None
+                                                  else budget - used_sec)
+                    used_sec += float(st.get("submitted") or 0)
+                    if st.get("partial"):
+                        partial = True
+            except BotStopped:
+                raise
             except QuotaExhausted:
                 self.say("[配额] 当日学时配额已满, 终止本课程剩余小节")
                 raise
@@ -674,7 +728,10 @@ class StudyBot:
             if good:
                 touched.add(sec["section_id"])
             if not self.dry_run:
-                time.sleep(random.uniform(2.0, 5.0))
+                self._sleep(random.uniform(2.0, 5.0))
+
+        if partial:
+            self.say("[额度] 已达本次学时上限, 停在半节上（下次续学即可, 不要当失败重跑）")
 
         # 复核：先刷新进度行，再把本次处理过却回退的小节补 settle 一次
         def snapshot():
@@ -705,6 +762,9 @@ class StudyBot:
         self.say(f"\n结果: 成功 {ok} / 失败 {fail} | 小节完成度 {done}/{len(secs2)}")
         self.last_result = {"done": done, "total": len(secs2), "failed": fail,
                             "confirmed": None}
+        if report is not None:
+            report.update({"ok": ok, "fail": fail, "submitted": used_sec,
+                           "partial": partial})
         # 本次没有失败就等服务端把这一课汇总完 —— 两处都不能省：
         # 1) 不看 done==total：小节回读会滞后/回退，当"没学完"会导致重复学习、白扣配额；
         # 2) 不看 todo 非空：--sync / 重跑到"小节早就全部完成、只差专题层汇总"时 todo 是空的，
@@ -772,6 +832,8 @@ class StudyBot:
                 return self.course_finish(course_id) in DONE_FINISH
             deadline = t0 + timeout
         while True:
+            if self.stopped():
+                raise BotStopped()
             try:
                 finished = self.course_finish(course_id) in DONE_FINISH
             except Exception as exc:            # 单次网络抖动不该让整门课判失败
@@ -784,15 +846,38 @@ class StudyBot:
                 return True
             if time.time() >= deadline:
                 break
-            time.sleep(min(interval, max(1.0, deadline - time.time())))
+            self._sleep(min(interval, max(1.0, deadline - time.time())))
         self.say(f"[复核] 平台尚未汇总（已等 {int(time.time() - t0)}s）；"
                  f"服务端异步结算实测需 2–18 分钟，稍后可用 --sync 复查，不必重新学")
         return False
 
+    def stop(self):
+        """请求停止全部学习循环（close 也会触发）; 已在路上的单次 HTTP 不强行中断。"""
+        self._stop.set()
+
+    def stopped(self):
+        return self._stop.is_set()
+
+    def _sleep(self, seconds):
+        """可中断等待: 期间收到停止请求最迟 0.5s 后抛 BotStopped, 上层直接收尾。
+
+        用 time.sleep 分片而不是 Event.wait: 测试会把 time.sleep 打桩成假钟,
+        绕过它会让等待变成真实时长, 用例会挂。
+        """
+        left = max(0.0, seconds)
+        while left > 0:
+            if self._stop.is_set():
+                raise BotStopped()
+            piece = min(0.5, left)
+            time.sleep(piece)
+            left -= piece
+
     def close(self):
+        self._stop.set()          # close 即停: 学习循环最迟在下一个等待点退出
         if self.hb:
             self.hb.stop()
             self.say(f"[心跳] 共发送 {self.hb.beats} 次 PING")
+            self.hb.join(timeout=1)   # 心跳线程 recv 自带 10s 超时, 这里不无限等
 
     # ------------------------------------------------------------ 目标解析
     UUID_RE = re.compile(
@@ -982,6 +1067,8 @@ class StudyBot:
                 self.say(f"\n########## 任务 [{i}/{len(items)}] {t['name'][:40]} ##########")
                 try:
                     done, total = self.run_course(t["businessId"])
+                except BotStopped:
+                    raise
                 except QuotaExhausted:
                     self.say("[todo] ⛔ 当日学时配额已满, 停止处理剩余任务, 请次日重跑")
                     break
@@ -1020,7 +1107,7 @@ class StudyBot:
                         still.append((name, bid))
                 pending = still
                 if pending:
-                    time.sleep(min(30, max(1.0, deadline - time.time())))
+                    self._sleep(min(30, max(1.0, deadline - time.time())))
         self.say("\n========== 汇总 ==========")
         for name, done, total, _bid, r in summary:
             if r.get("failed"):
@@ -1061,30 +1148,56 @@ class StudyBot:
             return
         gained = 0.0
         flat = 0  # 连续两门课学时无增长 → 疑似配额/口径问题, 停
-        for i, t in enumerate(items, 1):
-            self.say(f"\n########## 学时任务 [{i}/{len(items)}] {t['name'][:40]} ##########")
-            try:
-                self.run_course(t["businessId"])
-            except QuotaExhausted:
-                self.say("[学时] ⛔ 当日学时配额已满, 停止处理, 请次日重跑")
-                return
-            except Exception as e:
-                self.say(f"         -> FAIL 异常 {type(e).__name__}: {e}")
-                continue
-            info = self.hours_self()
-            gained = float(info.get("hourSelf") or 0) - base
-            self.say(f"[学时] 已累计 {gained:.2f}/{target} 学时")
-            if gained >= target:
-                self.say(f"[学时] 🎉 已达成目标: +{gained:.2f} 学时")
-                return
-            flat = flat + 1 if gained <= 0 else 0
-            if flat >= 2:
-                self.say("[学时] ⛔ 连续两门课后学时无增长——"
-                      "大概率当日配额已满或学时入账有延迟, 停止")
-                return
+        budget = target * 3600.0        # 本次额度（秒）: 到点停在半节, 不是整门跑完才查
+        local_sec = 0.0                 # 本地已提交秒数（平台口径滞后, 先用它熔断）
         if not self.dry_run:
-            record_today_hours(float(self.hours_self().get("hourSelf") or 0),
-                               session_base=base)
+            # 先按学习前读数建当日基准: 否则中途退出/异常时不落账,
+            # 同日重跑 --today 会把已学过的量再给一遍
+            record_today_hours(base, session_base=base)
+        try:
+            for i, t in enumerate(items, 1):
+                if budget - local_sec <= 1:
+                    self.say("[学时] 本次学时额度已用满, 停止处理")
+                    break
+                if self.stopped():
+                    raise BotStopped()
+                self.say(f"\n########## 学时任务 [{i}/{len(items)}] {t['name'][:40]} ##########")
+                rep = {}
+                try:
+                    self.run_course(t["businessId"],
+                                    budget=max(1.0, budget - local_sec), report=rep)
+                except BotStopped:
+                    raise
+                except QuotaExhausted:
+                    self.say("[学时] ⛔ 当日学时配额已满, 停止处理, 请次日重跑")
+                    return
+                except Exception as e:
+                    self.say(f"         -> FAIL 异常 {type(e).__name__}: {e}")
+                    continue
+                local_sec += float(rep.get("submitted") or 0)
+                if rep.get("partial"):
+                    self.say("[学时] 已达本次学时额度, 停在半节上（下次续学, 不要当失败重跑）")
+                    break
+                info = self.hours_self()
+                gained = float(info.get("hourSelf") or 0) - base
+                self.say(f"[学时] 已累计 本地 {local_sec / 3600:.2f}h"
+                      f" / 平台 +{gained:.2f}/{target} 学时")
+                if gained >= target:
+                    self.say(f"[学时] 🎉 已达成目标: +{gained:.2f} 学时")
+                    return
+                flat = flat + 1 if gained <= 0 else 0
+                if flat >= 2:
+                    self.say("[学时] ⛔ 连续两门课后学时无增长——"
+                          "大概率当日配额已满或学时入账有延迟, 停止")
+                    return
+        finally:
+            # 无论走完、达标提前退还是异常中断, 都按最新读数落账一次
+            if not self.dry_run:
+                try:
+                    record_today_hours(float(self.hours_self().get("hourSelf") or 0),
+                                       session_base=base)
+                except Exception as e:
+                    self.say(f"[今日] 落账失败（{type(e).__name__}: {e}）, 不影响已上报时长")
         self.say(f"[学时] 未完成任务全部刷完, 累计 +{gained:.2f}/{target} 学时"
               f" (新任务可能明天才出现)")
 
@@ -1155,6 +1268,8 @@ def main():
                     help="学习记录：最近 N 天学过/在学的课程与专题（默认 7 天）")
     ap.add_argument("--ics", metavar="文件",
                     help="把必修截止日导出为 iCalendar 日历文件（含提前 3 天提醒）")
+    ap.add_argument("--force", action="store_true",
+                    help="--ics 目标文件已存在时也允许覆盖")
     ap.add_argument("--dry-run", action="store_true", help="只体检不上报")
     ap.add_argument("--chunk", type=int, default=None,
                     help="单次上报秒数 (音频默认300, 视频默认600)")
@@ -1209,9 +1324,17 @@ def main():
             print(f"RESULT|ok=true|mode=logs|count={len(rows)}")
             return 0
         if a.ics:
+            # 限制为 .ics 后缀, 防止把导出当写文件原语覆盖任意文件
+            if not str(a.ics).lower().endswith(".ics"):
+                print("[ics] 目标必须以 .ics 结尾")
+                return 2
+            target = pathlib.Path(a.ics)
+            if target.exists() and not a.force:
+                print(f"[ics] {a.ics} 已存在; 如确要覆盖, 加 --force")
+                return 2
             items = [t for t in bot.list_tasks()
                      if t.get("businessType") in (1, 2) and not t.get("expired")]
-            open(a.ics, "w", encoding="utf-8").write(render_ics(items, alarm_days=3))
+            target.write_text(render_ics(items, alarm_days=3), encoding="utf-8")
             print(f"[ics] 已导出 {len(items)} 个必修截止日到 {a.ics}")
             return 0
         if a.today:
