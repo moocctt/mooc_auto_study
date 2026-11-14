@@ -63,7 +63,8 @@
   }
   function shouldDriveHere(myTab, apTab) {
     if (!(apTab > 0)) return true;
-    if (!(myTab > 0)) return true;
+    // whoami 失败返回 -1: 不能再视作 owner, 否则所有 mooc 标签页会同时驱动互顶（审计 P1-6）
+    if (!(myTab > 0)) return false;
     return myTab === apTab;
   }
 
@@ -169,7 +170,11 @@
       };
       send();
       window.addEventListener("storage", (e) => {
-        if (e.key === "token") send();
+        if (e.key === "token") {
+          send();
+          // 新令牌到达: 复位 401/登录墙停机标志, 让值守可以自动恢复（审计 P1-7）
+          resetAuthHalt();
+        }
       });
       setInterval(() => {
         if (document.visibilityState === "visible") send();
@@ -213,6 +218,11 @@
   };
   var saw401 = false;
   var haltedForLogin = false;
+  // 新令牌到达或登录墙消失时清零, 否则一次 401 后值守永久卡死（审计 P1-7）
+  var resetAuthHalt = () => {
+    saw401 = false;
+    haltedForLogin = false;
+  };
   var drivingAccount = "";
   var NEED_LOGIN_STATUS = (why) => `\u767B\u5F55\u6001\u5DF2\u5931\u6548\uFF08${why}\uFF09\uFF0C\u503C\u5B88\u5DF2\u505C\u6B62 \xB7 \u8BF7\u91CD\u65B0\u626B\u7801\u6216\u8D26\u5BC6\u767B\u5F55`;
   var loginWallNow = () => detectLoginWall({
@@ -614,7 +624,9 @@
   };
   var driveOnce = async () => {
     const api = globalThis.browser || globalThis.chrome;
-    const got = await api?.storage?.local?.get?.([AP.on, AP.at, AP.tab, AP.account]);
+    const got = await api?.storage?.local?.get?.([AP.on, AP.at, AP.tab, AP.account, "mooc.storeBuild"]);
+    // 商店版构建会在 SW 启动时写入标记: 内容脚本驱动是能力层门控, 不能只靠 UI 藏入口
+    if (got?.["mooc.storeBuild"]) return;
     const on = !!got?.[AP.on];
     if (!on) {
       if (wasOn) {
@@ -644,12 +656,16 @@
         resetDocFails();
       }
     }
-    if (!haltedForLogin) {
-      const wall = loginWallNow() || (saw401 ? "\u5E73\u53F0\u63A5\u53E3\u8FD4\u56DE 401" : "");
-      if (wall) {
-        await haltForLogin(wall);
-        return;
-      }
+    if (haltedForLogin) {
+      // 登录墙已消失（用户重新登录成功）: 复位失败标志后照常走下面的判定
+      if (loginWallNow()) return;
+      saw401 = false;
+      haltedForLogin = false;
+    }
+    const wall = loginWallNow() || (saw401 ? "\u5E73\u53F0\u63A5\u53E3\u8FD4\u56DE 401" : "");
+    if (wall) {
+      await haltForLogin(wall);
+      return;
     }
     const docId = knowledgeIdOf(location.hash);
     if (docId && !document.querySelector("video")) {

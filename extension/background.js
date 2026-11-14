@@ -5,6 +5,12 @@ import { consoleUrl as buildConsoleUrl } from "./lib/loginEntry.js";
 import { createSerializer } from "./lib/serializer.js";
 import { EXPIRY_ALARM, nextExpiryDelay } from "./lib/tokenExpiry.js";
 import { UPDATE_NOTICE_KEY, updateNotice } from "./lib/onUpdate.js";
+import { STORE } from "./lib/flags.js";
+// 商店版的能力级门控: STORE 不能只关 UI —— 一键值守/AUTOPILOT_* 消息链/内容脚本驱动
+// 都要在这里短路, 否则改常量 ≠ 关自动化（审计 P0-1）
+if (STORE) {
+  void chrome.storage.local.set({ "mooc.storeBuild": true }).catch(() => {});
+}
 const AP = {
   on: "mooc.autopilot",
   at: "mooc.autopilotOnAt",
@@ -307,6 +313,7 @@ const maybeRefreshChromeUi = () => {
     if ((info.url || info.status === "complete") && tab.active) maybeRefreshChromeUi();
   });
   chrome.action.onClicked.addListener((tab) => {
+    if (STORE) return;
     refreshChromeUi();
     const url = tab?.url || "";
     void (async () => {
@@ -349,8 +356,17 @@ const maybeRefreshChromeUi = () => {
       }
     })();
   });
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, sender) => {
     if (msg?.type !== "AUTOPILOT_TICK") return;
+    // 驱动中的标签页会持续发 TICK: 把它的 tab.id 回写到 AP.tab, 修正 whoami 失败导致的 owner 缺失
+    const tickTab = Number(sender?.tab?.id) || 0;
+    if (tickTab > 0 && msg.playing) {
+      void chrome.storage.local.get(AP.tab).then((g) => {
+        if (Number(g?.[AP.tab]) !== tickTab) {
+          return chrome.storage.local.set({ [AP.tab]: tickTab });
+        }
+      }).catch(() => {});
+    }
     void (async () => {
       const got = await chrome.storage.local.get([TOKENS_KEY, ACTIVE_KEY]).catch(() => ({}));
       const need = await readNeedLogin();
@@ -377,6 +393,7 @@ const maybeRefreshChromeUi = () => {
   });
   chrome.runtime.onMessage.addListener((msg, sender) => {
     if (msg?.type !== "AUTOPILOT_OPEN" || !msg.url) return;
+    if (STORE) return;
     const fromConsole = String(sender?.url || "").includes("console.html");
     if (sender?.tab?.id && !fromConsole) {
       void (async () => {
@@ -391,6 +408,7 @@ const maybeRefreshChromeUi = () => {
   });
   chrome.runtime.onMessage.addListener((msg, sender) => {
     if (msg?.type !== "AUTOPILOT_COURSE_DONE") return;
+    if (STORE) return;
     void (async () => {
       const got0 = await chrome.storage.local.get(AP.tab);
       const apTab = Number(got0?.[AP.tab]) || 0;

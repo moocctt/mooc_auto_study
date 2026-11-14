@@ -265,9 +265,13 @@ class PlatformClient {
     return items.filter((t) => seen.has(t.id) ? false : (seen.add(t.id), true));
   }
   async sections(courseId, versionId, register) {
-    const [, body] = await this.req("GET", API_CHAPTERS, {
+    const [code, body] = await this.req("GET", API_CHAPTERS, {
       params: { courseId, versionId, isRegister: register }
     });
+    // 非 200/非数组（如空 versionId 触发的 422）必须抛错: 返回 [] 会被收尾重算算成 0/0 "全部完成"
+    if (code !== 200 || !Array.isArray(body)) {
+      throw new Error(`章节接口返回异常 (HTTP ${code})`);
+    }
     const out = [];
     for (const ch of Array.isArray(body) ? body : []) {
       for (const sec of ch.courseChapterSections || []) {
@@ -291,6 +295,14 @@ class PlatformClient {
       return this.openLibraryCourse(courseId);
     }
     const d = det || {};
+    if (!d.versionId) {
+      // register 响应缺 versionId 时先取课程详情补齐: 空 versionId 会让章节接口 422（审计 P1-9）
+      try {
+        const [, info] = await this.req("GET", `${API_COURSE_FRONT}/info/${courseId}`, { params: { source: 1, type: 1 } });
+        if (info && info.versionId) d.versionId = info.versionId;
+      } catch {
+      }
+    }
     return [d, await this.sections(courseId, d.versionId || "", d.register || false)];
   }
   /** 课程库课程：registerStudy 报名 + info/<id> 取章节（对齐 cli open_library_course）。 */
@@ -607,7 +619,9 @@ class PlatformClient {
         library ? 0 : 1
       );
       if (logId === null) return [false, "start-progress \u5931\u8D25"];
-      const rem = remRaw ?? 0;
+      // remainingTime 缺失(null)不能按 0 处理: 那会把未学完的小节误判成"学时已用完"而假完成（审计 P1-8）
+      if (remRaw === null) return [false, "start-progress 未返回 remainingTime, 无法判定学时状态"];
+      const rem = remRaw;
       if (rem <= 0) {
         if (submitted || sec.studied) return [true, `\u5B66\u4E60\u65F6\u957F\u5DF2\u7528\u5B8C\uFF08\u5F85\u5E73\u53F0\u6C47\u603B\uFF0C\u5171 ${submitted}s\uFF09`];
         break;

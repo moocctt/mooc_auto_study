@@ -4,9 +4,8 @@
   "description": "在浏览器里查看学院的学习进度、任务清单与运行记录。",
   "version": "2.11.3",
   "homepage_url": "https://github.com/gandli/tobacco-mooc-study",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/OVxma2OvNonKEj6U4+e/LVVXJehQPkvZNjeswNqEj+MN/SQ9lg42geuJRimzWgWao83EKRI76ZnqZg8bGJvCctt/fL7y/fPldGLjTcs0M2B2vLKPkmds7RxvvyLeylD0GjmMivFpP4Io8lYuYdsRLqQ0DnzrmMZdBsvgxcKLZl6Bz3AwGQBPuvw/TDVn1Flt7Yu+zZqx4drCh9Zm1tHciE67GV2bX/xkOIAej962TowDVPerkWFzXLPHJt3vl13TXZRiL5AY2Bvvya6FsizN5ILpFlXX7sOZc/6GVFNsH+cFvYzN+5dr2KkcD4QViz8+7BVYdHfwNrAXf2Qdk6QQIDAQAB",
   "permissions": ["storage", "alarms"],
-  "host_permissions": ["https://mooc.ctt.cn/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": ["https://mooc.ctt.cn/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

@@ -148,12 +148,13 @@ function decField(b64) {
   const pad = out[out.length - 1];
   return utf8Decode(out.subarray(0, out.length - pad));
 }
+// 只有 401 与这四个平台登录态错误码才代表“凭据被拒”。422 是参数非法、403/429 是风控/限流,
+// 与密码无关: 误判会导致删除用户已保存的密码并累计登录失败锁定（审计 P0-3）
+var AUTH_REJECT_CODES = ["90901", "90902", "90908", "90105"];
 function isAuthRejection(err) {
   if (!err) return false;
-  const status = Number(err.status || 0);
-  const code = String(err.errorCode || "");
-  const msg = String(err.message || "");
-  return status === 401 || status === 422 || code === "90908" || code === "90105" || status >= 400 && status < 500 && !/fetch failed|timeout|network/i.test(msg);
+  if (Number(err.status || 0) === 401) return true;
+  return AUTH_REJECT_CODES.includes(String(err.errorCode || ""));
 }
 export {
   AES_KEY,
