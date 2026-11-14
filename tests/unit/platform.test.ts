@@ -11,8 +11,8 @@ test('fetchProfile: 解析 headPortraitPath 并在缺头像时兜底系统设置
   const reply = (data) => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const token = { access_token: 'a'.repeat(24), token_type: 'Bearer' };
 
-  const p = await fetchProfile(token, async () => reply({ fullName: '陈学新', headPortraitPath: '/upload/head.png' }));
-  assert.equal(p.displayName, '陈学新');
+  const p = await fetchProfile(token, async () => reply({ fullName: '张三', headPortraitPath: '/upload/head.png' }));
+  assert.equal(p.displayName, '张三');
   assert.equal(p.avatar, 'https://mooc.ctt.cn/upload/head.png');
 
   const nested = await fetchProfile(token, async () => reply({ data: { name: '李四', headPortraitPath: 'group1/a.jpg' } }));
@@ -71,7 +71,7 @@ function fakePlatform({ remaining = [120, 0], finishStatus = 2, authFailAt = -1,
     const p = path.split('?')[0];
 
     if (p === '/oauth/api/v1/app-login') return reply({ access_token: 'tok-1', token_type: 'Bearer', expires_in: 2592000 });
-    if (p === '/api/v1/human/member/center') return reply({ fullName: '陈学新' });
+    if (p === '/api/v1/human/member/center') return reply({ fullName: '张三' });
     if (p === '/api/v1/human/task') {
       return reply({
         recordCount: 2,

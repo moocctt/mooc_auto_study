@@ -34,7 +34,7 @@ function fakePlatform({ loginMode = 'ok' } = {}) {
       if (cfg.loginMode === 'badpw') return reply({ errorCode: '90908', message: '登录失败' }, 422);
       return reply({ access_token: 'tok', token_type: 'Bearer' });
     }
-    if (p === '/api/v1/human/member/center') return reply({ fullName: '陈学新' });
+    if (p === '/api/v1/human/member/center') return reply({ fullName: '张三' });
     return reply({}, 404);
   };
   return { fetchImpl, calls, cfg };

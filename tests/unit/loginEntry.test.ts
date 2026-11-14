@@ -31,9 +31,9 @@ test('stripLogin: 只摘 login, 保留其它 query 与 hash', () => {
 });
 
 test('prefillForAccount: 只给账密账号预填（key === username）', () => {
-  assert.equal(prefillForAccount({ key: '15980250706', username: '15980250706' }), '15980250706');
+  assert.equal(prefillForAccount({ key: '13900001234', username: '13900001234' }), '13900001234');
   // 扫码账号: key 是 userid / uuid, username 是姓名 → 预填会让用户以姓名新建重复账号
-  assert.equal(prefillForAccount({ key: 'a1b2-uuid', username: '陈学新', displayName: '陈学新' }), '');
+  assert.equal(prefillForAccount({ key: 'a1b2-uuid', username: '张三', displayName: '张三' }), '');
   assert.equal(prefillForAccount({ key: 'u1', username: '' }), '');
   assert.equal(prefillForAccount({ key: '', username: 'u1' }), '');
   assert.equal(prefillForAccount(null), '');

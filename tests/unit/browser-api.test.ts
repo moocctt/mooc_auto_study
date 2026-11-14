@@ -27,7 +27,7 @@ function fakePlatform({ remaining = [120, 0], finishStatus = 2 } = {}) {
     calls.push({ path, method, body: init.body ? String(init.body) : null });
     const p = path.split('?')[0];
     if (p === '/oauth/api/v1/app-login') return reply({ access_token: 'tok', token_type: 'Bearer' });
-    if (p === '/api/v1/human/member/center') return reply({ fullName: '陈学新' });
+    if (p === '/api/v1/human/member/center') return reply({ fullName: '张三' });
     if (p === '/api/v1/system/cadre-education/detail-hour-member') return reply({ hourSelf: 12.5, requireCourseHour: 50, hourTrain: 6 });
     if (p === '/api/v1/human/task') return reply({ recordCount: 0, items: [] });
     if (p === '/api/v1/course-study/course-study-progress/personCourse-list') {
@@ -91,7 +91,7 @@ test('初始状态: 没有账号也没有运行记录', async () => {
 test('登录后写入 localStorage, 密码只进 sessionStorage', async () => {
   const { api } = makeApi();
   const body = await login(api);
-  assert.equal(body.accounts[0].displayName, '陈学新');
+  assert.equal(body.accounts[0].displayName, '张三');
   assert.equal(body.accounts[0].active, true);
   assert.equal(api.state.busy, null);
 });
@@ -131,7 +131,7 @@ test('跑一次课程: 202 → 记录从 running 变为 done', async () => {
   const rec = await wait();
   assert.ok(rec, '应产生运行记录');
   assert.equal(rec.label, '学习课程');
-  assert.equal(rec.account, '陈学新');
+  assert.equal(rec.account, '张三');
   assert.equal(rec.status, 'done');
   assert.ok(rec.endedAt >= rec.startedAt);
   assert.ok(calls.some((c) => c.path.startsWith('/api/v1/course-study/course-front/start-progress/s1')));
