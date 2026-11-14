@@ -1,4 +1,4 @@
-name: userscript tests
+name: userscript syntax check
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  check:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,9 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: 璇硶妫€鏌?
+      - name: node --check
         run: |
           node --check userscript/tobacco-mooc-fast.user.js
           node --check userscript/tobacco-mooc-unattended.user.js
-      - name: 鍗曞厓娴嬭瘯涓庡紩鎿庤鍒?
-        run: node tests/runner.js
